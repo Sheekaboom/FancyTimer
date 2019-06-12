@@ -361,8 +361,17 @@ class QamSim:
         
     
         
-        
-    
+def gen_root_raised_cosine(beta,Ts,times):
+    times = np.array(times)
+    h = np.zeros(times.shape)
+    for i,t in enumerate(times): #go through each time and calculate
+        if t is 0:
+            h[i] = 1/Ts*(1+beta(4/np.pi - 1))
+        elif t is Ts/(4*beta) or t is -Ts/(4*beta):
+            h[i] = beta/(Ts*np.sqrt(2))*((1+2/np.pi)*np.sin(np.pi/(4*beta))+(1-2/np.pi)*np.cos(np.pi/(4*beta)))
+        else:
+            h[i] = 1/Ts*(np.sin(np.pi*(t/Ts)*(1-beta))+4*beta*(t/Ts)*np.cos(np.pi*(t/Ts)*(1+beta)))/(np.pi*(t/Ts)*(1-(4*beta*(t/Ts))**2))
+    return h
     #right now runs saved values in
     #def run_impulse_response()
      
@@ -382,97 +391,109 @@ class QamSim:
 #    
 #    locErr = np.sqrt(np.square(I-myI)+np.square(Q-myQ))
 #    err.append(locErr)
+import matplotlib.pyplot as plt
+t = np.arange(-10,11,0.1)
+ts = 1
+betas = [0.001,0.01,0.1,0.5,0.7,1]
+fig = plt.figure()
+for b in betas:
+    h = gen_root_raised_cosine(b,ts,t)
+    plt.plot(t,h,label=r"$\beta={}$".format(b))
+ax = plt.gca()
+ax.legend()
+    
+
 
 from scipy import signal
-
-f = 2.4e9;
-bw = .2e9#.2*f;
-qam_syms = 16;
-numVals = 10;
-encode_lp = 1;
-decode_lp = 0;
-window_shft=0;
-
-
-txtname = './los_lin_pdp_full.txt';
-#txtname = './non_los_lin_pdp.txt';
-impResTime,impResVals = np.loadtxt(txtname,unpack=True);
-impResTime -= impResTime[0]
-imp_t_start = impResTime[0];
-imp_t_end   = impResTime[-1];
-impResTimeNew = np.arange(imp_t_start,imp_t_end,0.001)
-impResValsNew = np.interp(impResTimeNew,impResTime,impResVals);
-impResTime = impResTimeNew/1e9;
-impResVals = impResValsNew;
-#impResVals = signal.unit_impulse(len(impResTime),int(len(impResTime)/8))
-
-valList = range(qam_syms)
-
-random.seed(123)
-randVals = [random.choice(valList) for i in range(numVals)]
-rand_vals_str = [str(i) for i in randVals]
-
-print("Sim Started")
-qs = QamSim(qam_syms,bw=bw,fc=f);
-print("Correcting phase and magnitude for channel Response")
-phase_corr,mag_corr,test_key = qs.get_channel_correction(impResVals,do_lowpass=1,key_len=10)
-mag_adj = np.mean(mag_corr);#50000;
-phase_adj = np.mean(phase_corr)#;10;
-
-randVals = qs.add_buffer(randVals)
-
-print("Mapping to constellation")
-Il,Ql = qs.map_to_constellation(randVals)
-
-print("Encoding waveform")
-wf,t = qs.encode_qam_waveform(Il,Ql,do_lowpass=encode_lp)
-
-print("Running through channel (Convolve with impulse response)")
-wfc = np.convolve(wf,impResVals,'full') #fails here if impulse response in longer than waveform
-wfc = wfc[qs.channel_delay_idx:]
-tc = np.arange(len(wfc))*qs.time_step;
-
-print("Decoding waveform")
-ribb,rqbb = qs.mix_to_baseband(wfc,tc)
-outI,outQ,wsl,wel = qs.decode_qam_waveform(wfc,tc,phase_adj,mag_adj,num_symbols=len(randVals),do_lowpass=decode_lp,window_shift=window_shft)
-outI = qs.strip_buffer(outI)
-outQ = qs.strip_buffer(outQ)
-wsl = qs.strip_buffer(wsl)
-wel = qs.strip_buffer(wel)
-randVals = qs.strip_buffer(randVals);
-
-vals,p_avg,p_evm,evm,phase_off,mag_off,correct_key = qs.unmap_from_constellation(outI,outQ,randVals);
-#randVals  = qs.strip_buffer(randVals);
-
-print("Plotting");
-qs.init_iq_plot();
-qs.plot_iq_points(Il,Ql)
-#qs.plot_iq_points(np.multiply(outI,out_mult),np.multiply(outQ,out_mult))
-clist=['r','g','y','c']
-colors = [clist[i%len(clist)] for i in randVals]
-qs.plot_iq_points(outI,outQ,colors=colors)
-for i in range(len(outI)):
-    plt.text(outI[i],outQ[i],rand_vals_str[i])
-plt.figure()
-plt.subplot(311)
-plt.plot(t,wf)
-plt.subplot(312)
-plt.plot(impResTime,impResVals)
-plt.subplot(313)
-plt.plot(tc,wfc)
-for i in range(len(wsl)):
-    plt.axvline(wsl[i],c='r')
-    plt.axvline(wel[i],c='k')
-tibb,tqbb,tt = qs.encode_baseband(Il,Ql);
-ribb,rqbb = qs.mix_to_baseband(wfc,tc);
-ribb=ribb[0:qs.window_size*numVals*2]
-rqbb=rqbb[0:qs.window_size*numVals*2]
-plt.figure();
-plt.subplot(211)
-plt.plot(tibb);plt.plot(tqbb);
-plt.subplot(212)
-plt.plot(ribb);plt.plot(rqbb);
-for i in range(len(wsl)):
-    plt.axvline(wsl[i]/qs.time_step,c='r')
-    plt.axvline(wel[i]/qs.time_step,c='k')
+if False:
+    f = 2.4e9;
+    bw = .2e9#.2*f;
+    qam_syms = 16;
+    numVals = 10;
+    encode_lp = 1;
+    decode_lp = 0;
+    window_shft=0;
+    
+    
+    txtname = './los_lin_pdp_full.txt';
+    #txtname = './non_los_lin_pdp.txt';
+    impResTime,impResVals = np.loadtxt(txtname,unpack=True);
+    impResTime -= impResTime[0]
+    imp_t_start = impResTime[0];
+    imp_t_end   = impResTime[-1];
+    impResTimeNew = np.arange(imp_t_start,imp_t_end,0.001)
+    impResValsNew = np.interp(impResTimeNew,impResTime,impResVals);
+    impResTime = impResTimeNew/1e9;
+    impResVals = impResValsNew;
+    #impResVals = signal.unit_impulse(len(impResTime),int(len(impResTime)/8))
+    
+    valList = range(qam_syms)
+    
+    random.seed(123)
+    randVals = [random.choice(valList) for i in range(numVals)]
+    rand_vals_str = [str(i) for i in randVals]
+    
+    print("Sim Started")
+    qs = QamSim(qam_syms,bw=bw,fc=f);
+    print("Correcting phase and magnitude for channel Response")
+    phase_corr,mag_corr,test_key = qs.get_channel_correction(impResVals,do_lowpass=1,key_len=10)
+    mag_adj = np.mean(mag_corr);#50000;
+    phase_adj = np.mean(phase_corr)#;10;
+    
+    randVals = qs.add_buffer(randVals)
+    
+    print("Mapping to constellation")
+    Il,Ql = qs.map_to_constellation(randVals)
+    
+    print("Encoding waveform")
+    wf,t = qs.encode_qam_waveform(Il,Ql,do_lowpass=encode_lp)
+    
+    print("Running through channel (Convolve with impulse response)")
+    wfc = np.convolve(wf,impResVals,'full') #fails here if impulse response in longer than waveform
+    wfc = wfc[qs.channel_delay_idx:]
+    tc = np.arange(len(wfc))*qs.time_step;
+    
+    print("Decoding waveform")
+    ribb,rqbb = qs.mix_to_baseband(wfc,tc)
+    outI,outQ,wsl,wel = qs.decode_qam_waveform(wfc,tc,phase_adj,mag_adj,num_symbols=len(randVals),do_lowpass=decode_lp,window_shift=window_shft)
+    outI = qs.strip_buffer(outI)
+    outQ = qs.strip_buffer(outQ)
+    wsl = qs.strip_buffer(wsl)
+    wel = qs.strip_buffer(wel)
+    randVals = qs.strip_buffer(randVals);
+    
+    vals,p_avg,p_evm,evm,phase_off,mag_off,correct_key = qs.unmap_from_constellation(outI,outQ,randVals);
+    #randVals  = qs.strip_buffer(randVals);
+    
+    print("Plotting");
+    qs.init_iq_plot();
+    qs.plot_iq_points(Il,Ql)
+    #qs.plot_iq_points(np.multiply(outI,out_mult),np.multiply(outQ,out_mult))
+    clist=['r','g','y','c']
+    colors = [clist[i%len(clist)] for i in randVals]
+    qs.plot_iq_points(outI,outQ,colors=colors)
+    for i in range(len(outI)):
+        plt.text(outI[i],outQ[i],rand_vals_str[i])
+    plt.figure()
+    plt.subplot(311)
+    plt.plot(t,wf)
+    plt.subplot(312)
+    plt.plot(impResTime,impResVals)
+    plt.subplot(313)
+    plt.plot(tc,wfc)
+    for i in range(len(wsl)):
+        plt.axvline(wsl[i],c='r')
+        plt.axvline(wel[i],c='k')
+    tibb,tqbb,tt = qs.encode_baseband(Il,Ql);
+    ribb,rqbb = qs.mix_to_baseband(wfc,tc);
+    ribb=ribb[0:qs.window_size*numVals*2]
+    rqbb=rqbb[0:qs.window_size*numVals*2]
+    plt.figure();
+    plt.subplot(211)
+    plt.plot(tibb);plt.plot(tqbb);
+    plt.subplot(212)
+    plt.plot(ribb);plt.plot(rqbb);
+    for i in range(len(wsl)):
+        plt.axvline(wsl[i]/qs.time_step,c='r')
+        plt.axvline(wel[i]/qs.time_step,c='k')
 
