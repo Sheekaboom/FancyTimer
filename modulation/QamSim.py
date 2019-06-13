@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import random
 import scipy
 
+#DEPRECATED!!!
 class QamSim:
     
     #number of symbols 'qam_syms' must be a power of two and have an integer square root (ie, 4,16,64,256)
@@ -361,19 +362,7 @@ class QamSim:
         
     
         
-def gen_root_raised_cosine(beta,Ts,times):
-    times = np.array(times)
-    h = np.zeros(times.shape)
-    for i,t in enumerate(times): #go through each time and calculate
-        if t is 0:
-            h[i] = 1/Ts*(1+beta(4/np.pi - 1))
-        elif t is Ts/(4*beta) or t is -Ts/(4*beta):
-            h[i] = beta/(Ts*np.sqrt(2))*((1+2/np.pi)*np.sin(np.pi/(4*beta))+(1-2/np.pi)*np.cos(np.pi/(4*beta)))
-        else:
-            h[i] = 1/Ts*(np.sin(np.pi*(t/Ts)*(1-beta))+4*beta*(t/Ts)*np.cos(np.pi*(t/Ts)*(1+beta)))/(np.pi*(t/Ts)*(1-(4*beta*(t/Ts))**2))
-    return h
-    #right now runs saved values in
-    #def run_impulse_response()
+
      
         
 #err = []
@@ -392,17 +381,7 @@ def gen_root_raised_cosine(beta,Ts,times):
 #    locErr = np.sqrt(np.square(I-myI)+np.square(Q-myQ))
 #    err.append(locErr)
 
-import matplotlib.pyplot as plt
-t = np.arange(-10,11,0.1)
-ts = 1
-betas = [0.001,0.01,0.1,0.5,0.7,1]
-fig = plt.figure()
-for b in betas:
-    h = gen_root_raised_cosine(b,ts,t)
-    plt.plot(t,h,label=r"$\beta={}$".format(b))
-ax = plt.gca()
-ax.legend()
-    
+ 
 
 
 from scipy import signal

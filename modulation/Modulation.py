@@ -53,9 +53,12 @@ class Modulation:
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
         self.options = {}
-        self.options['sample_frequncy']   = 100e9
+        self.options['sample_frequency']   = 100e9
         self.options['carrier_frequency'] = 1e9
-        self.options['baud_rate']         = 1e6
+        self.options['baud_rate']         = 100e6
+        for k,v in arg_options.items():
+            self.options[k] = v
+        
    
     def modulate(self,data):
         '''
@@ -82,6 +85,26 @@ class Modulation:
         data_ba = bytearray(data)
         bits = np.unpackbits(data_ba)
         return bits
+    
+class ModulatedSignal:
+    '''
+    @brief class to provide a template for a modulated signal
+    This is simply a structure to hold all of the data describing the signal
+    '''
+    def __init__(self,**arg_options):
+        '''
+        @brief constructor to get options (and do other things)
+        @param[in/OPT] arg_options - keyword arguments as follows
+            sample_frequency - frequency for sample points
+            carrier_frequency - frequency our qam will be upconverted to upon modulation
+        '''
+        self.options = {}
+        self.options['sample_frequency']   = 100e9
+        self.options['carrier_frequency'] = 1e9
+        self.options['baud_rate']         = 1e6
+        self.options['type']              = None
+        for k,v in arg_options.items():
+            self.options[k] = v
    
    
 def generate_gray_code_mapping(num_codes,constellation_function):
@@ -119,3 +142,41 @@ def get_num_bits(number):
     #num_bits = mybits.shape[0] - ones_loc[0]
     return num_bits
    
+def generate_root_raised_cosine(beta,Ts,times):
+    times = np.array(times)
+    h = np.zeros(times.shape)
+    for i,t in enumerate(times): #go through each time and calculate
+        if t is 0:
+            h[i] = 1/Ts*(1+beta(4/np.pi - 1))
+        elif t is Ts/(4*beta) or t is -Ts/(4*beta):
+            h[i] = beta/(Ts*np.sqrt(2))*((1+2/np.pi)*np.sin(np.pi/(4*beta))+(1-2/np.pi)*np.cos(np.pi/(4*beta)))
+        else:
+            h[i] = 1/Ts*(np.sin(np.pi*(t/Ts)*(1-beta))+4*beta*(t/Ts)*np.cos(np.pi*(t/Ts)*(1+beta)))/(np.pi*(t/Ts)*(1-(4*beta*(t/Ts))**2))
+    return h
+    #right now runs saved values in
+    #def run_impulse_response()
+    
+if __name__=='__main__':
+    
+    import matplotlib.pyplot as plt
+    t = np.arange(-10,11,0.1)
+    ts = 1
+    betas = [0.001,0.01,0.1,0.5,0.7,1]
+    fig = plt.figure()
+    for b in betas:
+        h = generate_root_raised_cosine(b,ts,t)
+        plt.plot(t,h,label=r"$\beta={}$".format(b))
+    ax = plt.gca()
+    ax.legend()
+    
+    times = np.arange(0,100,0.1)
+    dirac = np.zeros(times.shape)
+    dirac[int(times.shape[0]/2)] = 1
+    plt.figure()
+    plt.plot(times,dirac)
+    dirac_conv = np.convolve(dirac,h,'same')
+    plt.plot(times,dirac_conv)
+    dirac_conv_conv = np.convolve(dirac_conv,h,'same')
+    plt.plot(times,dirac_conv_conv)  
+
+
