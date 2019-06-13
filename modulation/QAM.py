@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 import scipy
+import cmath
 
 class QAMModem(Modulation):
     '''
@@ -90,7 +91,7 @@ class QAMModem(Modulation):
         i_sig[symbol_start:symbol_end:steps_per_symbol] = i_vals
         q_sig[symbol_start:symbol_end:steps_per_symbol] = q_vals
         clock = np.zeros_like(times,dtype=np.int8) #clocking pulse train
-        clock[symbol_start+1:symbol_end:steps_per_symbol] = 1
+        clock[symbol_start:symbol_end:steps_per_symbol] = 1
         #pack into class
         myqam = QAMSignal(data,**self.options) #build the waveform class
         myqam.data_iq = iq_vals
@@ -111,6 +112,7 @@ class QAMModem(Modulation):
             and a clock pulse train
         '''
         #decode the iq points
+        self.apply_rrc_filter(qam_signal)
         clk = qam_signal.clock.astype(np.bool)
         i_vals = qam_signal.i_baseband[clk]
         q_vals = qam_signal.q_baseband[clk]
@@ -140,11 +142,104 @@ class QAMModem(Modulation):
     ##########################################################################
     # Functions for correction of mag/phase
     ##########################################################################
-    def calculate_iq_correction(self,qam_signal):
+    def _calculate_iq_correction(self,qam_signal):
         '''
         @brief calulcate a magnitude phase offsets for our qam points
         '''
-        pass
+        #get the true magnitude phase of each symbol
+        true_phase = np.angle(qam_signal.data_iq)
+        true_mag   = np.abs(qam_signal.data_iq)
+        #now get the magnitudes and phases of our measured
+        self.decode_baseband(qam_signal) #decode current iq to calculate
+        meas_phase = np.angle(qam_signal.decoded_iq)
+        meas_mag   = np.abs(qam_signal.decoded_iq)
+        #now get the mean phase and mean scale of the mag
+        mag_cor = np.mean(true_mag/meas_mag)
+        phase_cor = np.mean(true_phase-meas_phase)
+        qam_signal.mag_correction = mag_cor
+        qam_signal.phase_correction = phase_cor
+    
+    def correct_decoded_iq(self,qam_signal):
+        '''
+        @brief apply calculated correction to current decoded iq signals. if a correction
+            doesnt currently exist than calculate it
+        '''
+        if qam_signal.mag_correction is None or qam_signal.phase_corrections is None: #then calculate the correction
+            self._calculate_iq_correction(qam_signal)
+        self._adjust_decoded_mag(qam_signal,qam_signal.mag_correction)
+        self._adjust_decoded_phase(qam_signal,qam_signal.phase_correction)
+        
+    def correct_iq(self,qam_signal):
+        '''
+        @brief apply calculated correction to current baseband iq signals. if a correction
+            doesnt currently exist than calculate it
+        '''
+        if qam_signal.mag_correction is None or qam_signal.phase_corrections is None: #then calculate the correction
+            self._calculate_iq_correction(qam_signal)
+        self._adjust_iq_mag(qam_signal,qam_signal.mag_correction)
+        self._adjust_iq_phase(qam_signal,qam_signal.phase_correction)
+    
+    def _adjust_iq_mag(self,qam_signal,mag_mult):
+        '''
+        @brief adjust magnitude of i and q baseband signals
+        @param[in] qam_signal - signal to adjust
+        @param[in] mag_mult- multiplier to adjust by
+        '''
+        adjusted_i = np.zeros_like(qam_signal.i_baseband)
+        adjusted_q = np.zeros_like(qam_signal.q_baseband)
+        baseband = qam_signal.i_baseband+1j*qam_signal.q_baseband
+        for i,val in enumerate(baseband):
+           mag,phase = cmath.polar(val)
+           mag *= mag_mult
+           adj_iq = cmath.rect(mag,phase)
+           adjusted_i[i] = adj_iq.real
+           adjusted_q[i] = adj_iq.imag
+        qam_signal.i_baseband = adjusted_i
+        qam_signal.q_baseband = adjusted_q
+        
+    def _adjust_decoded_mag(self,qam_signal,mag_mult):
+        '''
+        @brief adjust magnitude of decoded signals
+        @param[in] qam_signal - signal to adjust
+        @param[in] mag_mult- multiplier to adjust by
+        '''
+        adjusted_iq = np.zeros_like(qam_signal.decoded_iq,dtype=np.complex128)
+        for i,val in enumerate(qam_signal.decoded_iq):
+            mag,phase = cmath.polar(val)
+            mag *= mag_mult
+            adjusted_iq[i] = cmath.rect(mag,phase)
+        qam_signal.decoded_iq = adjusted_iq
+    
+    def _adjust_iq_phase(self,qam_signal,phase_rot_rad):
+        '''
+        @brief adjust phase of i and q baseband signals
+        @param[in] qam_signal - signal to adjust
+        @param[in] phase_rot_rad- rotation in radians
+        '''
+        adjusted_i = np.zeros_like(qam_signal.i_baseband)
+        adjusted_q = np.zeros_like(qam_signal.q_baseband)
+        baseband = qam_signal.i_baseband+1j*qam_signal.q_baseband
+        for i,val in enumerate(baseband):
+           mag,phase = cmath.polar(val)
+           phase += phase_rot_rad
+           adj_iq = cmath.rect(mag,phase)
+           adjusted_i[i] = adj_iq.real
+           adjusted_q[i] = adj_iq.imag
+        qam_signal.i_baseband = adjusted_i
+        qam_signal.q_baseband = adjusted_q
+        
+    def _adjust_decoded_phase(self,qam_signal,phase_rot_rad):
+        '''
+        @brief adjust phase of decoded signals
+        @param[in] qam_signal - signal to adjust
+        @param[in] phase_rot_rad- rotation in radians
+        '''
+        adjusted_iq = np.zeros_like(qam_signal.decoded_iq,dtype=np.complex128)
+        for i,val in enumerate(qam_signal.decoded_iq):
+            mag,phase = cmath.polar(val)
+            phase += phase_rot_rad
+            adjusted_iq[i] = cmath.rect(mag,phase)
+        qam_signal.decoded_iq = adjusted_iq
     
     
     ##########################################################################
@@ -320,7 +415,8 @@ class QAMSignal(ModulatedSignal):
         #decoded values
         self.decoded_iq = None
         self.decoded_bitstream = None
-        self.iq_correction = None
+        self.phase_correction = None
+        self.mag_correction = None
         
     def plot_baseband(self):
         '''
@@ -329,6 +425,9 @@ class QAMSignal(ModulatedSignal):
         fig = plt.figure()
         plt.plot(self.times,self.i_baseband,label="I Baseband")
         plt.plot(self.times,self.q_baseband,label="Q Baseband")
+        plt_min = np.min([self.i_baseband.min(),self.q_baseband.min()])
+        plt_max = np.max([self.i_baseband.max(),self.q_baseband.max()])
+        plt.plot(self.times,self.clock*(plt_max-plt_min)+plt_min)
         ax = plt.gca()
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Magnitude')
@@ -376,23 +475,23 @@ if __name__=='__main__':
     #codes = generate_gray_code_mapping(32)
     #for c in np.flip(codes,axis=1):
     #    print(c)
-    myqm = QAMModem(64)
-    fig=myq.plot_constellation()
+    myqm = None
+    myqam = None
+    myqm = QAMModem(16)
+    fig=myqm.plot_constellation()
     #mymap,inbits = myq.map_to_constellation(bytearray('testing'.encode()))
     #data = 'testing'.encode()
-    data = np.random.random(20)
+    data = np.random.random(2)
     myqam = myqm.encode_baseband(bytearray(data))
     #myqam.plot_baseband()
     #plt.plot(myqam.times,myqam.clock*2-1)
-    myqm.apply_rrc_filter(myqam)
-    myqam.i_baseband = myqam.i_baseband/np.abs(myqam.i_baseband).max()
-    myqam.q_baseband = myqam.q_baseband/np.abs(myqam.q_baseband).max()
-    myqam.plot_baseband()
     #plt.plot(myqam.times,myqam.clock*2-1)
+    myqm.correct_iq(myqam)
     myqm.decode_baseband(myqam)
     ax = fig.gca()
     myqam.plot_iq(ax)
     myqam.plot_decoded_points(ax)
+    myqam.plot_baseband()
     myevm = myqm.calculate_evm(myqam)
     print(myevm)
     #inbits = np.unpackbits(bytearray('testing'.encode()))
