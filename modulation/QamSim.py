@@ -391,6 +391,7 @@ def gen_root_raised_cosine(beta,Ts,times):
 #    
 #    locErr = np.sqrt(np.square(I-myI)+np.square(Q-myQ))
 #    err.append(locErr)
+#test change
 import matplotlib.pyplot as plt
 t = np.arange(-10,11,0.1)
 ts = 1
