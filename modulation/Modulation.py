@@ -84,8 +84,38 @@ class Modulation:
         return bits
    
    
+def generate_gray_code_mapping(num_codes,constellation_function):
+    '''
+    @brief generate gray codes for a given number of codes
+    @param[in] num_codes - the number of codes to generate (e.g. 256 is 0-255)
+    @param[in] constellation_function - function to generate constellation locations
+                for each code. The input to this will be the number of codes and the current code number.
+                the return should be a complex number of where the point is on the real imaginary plane
+    @return a dictionary mapping an array of bits to a constellation locations
+    '''
+    num_bits = get_num_bits(num_codes-1)
+    codes = []
+    constellation_dict = {}
+    for i in range(num_codes): #for each desired code
+        cur_const = constellation_function(i,num_codes)#generate our locations for iq here
+        cur_code = np.zeros(num_bits) #flip to get MSB first in array
+        for bn in range(num_bits):
+            cur_code[bn] = (((i+2**bn)>>(bn+1)))%2
+        cur_code = np.flip(cur_code,axis=0)
+        codes.append(cur_code)
+        constellation_dict[tuple(cur_code)] = cur_const
+    return constellation_dict
    
-   
-   
-   
+def get_num_bits(number):
+    '''
+    @brief find the number of bits required for a number
+    '''
+    num_bits = np.ceil(np.log2(number)).astype('int') #much easier way
+    #myba   = bytearray(np.array(number).byteswap().tobytes())
+    #mybits = np.unpackbits(myba)
+    #ones_loc = np.where(mybits==1)[0] #location of ones
+    #if ones_loc.shape[0] == 0: #if the list is empty
+    #    return 0 #if the number is 0 we have 0 bits
+    #num_bits = mybits.shape[0] - ones_loc[0]
+    return num_bits
    
