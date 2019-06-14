@@ -7,7 +7,7 @@ Created on Thu Jun  6 18:45:52 2019
 
 import numpy as np
 from Modulation import Modulation
-from Modulation import generate_gray_code_mapping,generate_root_raised_cosine
+from Modulation import generate_gray_code_mapping,generate_root_raised_cosine,lowpass_filter
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -77,7 +77,7 @@ class QAMModem(Modulation):
         iq_vals,_ = self.map_to_constellation(data,**arg_options) #get our complex data
         i_vals = iq_vals.real; q_vals = iq_vals.imag
         #generate time information
-        buffer = 2 #number of symbols to buffer on edge
+        buffer = 15 #number of symbols to buffer on edge
         num_symbols = len(iq_vals)+buffer*2
         symbol_period = 1/self.options['baud_rate'] #in seconds
         time_step = 1/self.options['sample_frequency']
@@ -90,54 +90,100 @@ class QAMModem(Modulation):
         i_sig = np.zeros_like(times); q_sig = np.zeros_like(times)
         i_sig[symbol_start:symbol_end:steps_per_symbol] = i_vals
         q_sig[symbol_start:symbol_end:steps_per_symbol] = q_vals
-        clock = np.zeros_like(times,dtype=np.int8) #clocking pulse train
-        clock[symbol_start:symbol_end:steps_per_symbol] = 1
+        #clock = np.zeros_like(times,dtype=np.int8) #clocking pulse train
+        #clock[symbol_start:symbol_end:steps_per_symbol] = 1
+        clock_sine = np.zeros_like(times)
+        clock_times = times[symbol_start:symbol_end]-times[symbol_start]
+        clock_phase = np.pi
+        clock_sine[symbol_start:symbol_end] = np.sin(2*np.pi*self.options['baud_rate']/2*clock_times+clock_phase)
         #pack into class
         myqam = QAMSignal(data,**self.options) #build the waveform class
         myqam.data_iq = iq_vals
         myqam.times = times
         myqam.i_baseband = i_sig
         myqam.q_baseband = q_sig
-        myqam.clock = clock
+        myqam.clock_sine = clock_sine
         #now filter
         self.apply_rrc_filter(myqam)
 
         return myqam
     
-    def decode_baseband(self,qam_signal):
+    def decode_baseband(self,qam_signal,source='if'):
         '''
         @brief decode a time domain baseband waveform to complex iq points. This
             data will be placed into qam_signal.decoded_iq
         @param[in] qam_signal - QAMSignal object with an encoded i and q baseband
             and a clock pulse train
+        @param[in/OPT] source - source of the data to decode can be the following:
+            rf - decode from downconverted rf signal
+            in - decode from baseband that has only been encoded
         '''
+        #get our data
         #decode the iq points
-        self.apply_rrc_filter(qam_signal)
+        i_decode,q_decode = self.apply_rrc_filter(qam_signal,False)
         clk = qam_signal.clock.astype(np.bool)
-        i_vals = qam_signal.i_baseband[clk]
-        q_vals = qam_signal.q_baseband[clk]
+        i_vals = i_decode[clk]
+        q_vals = q_decode[clk]
         decoded_iq = i_vals+1j*q_vals
         qam_signal.decoded_iq = decoded_iq
+        qam_signal._decoded_i_baseband = i_decode
+        qam_signal._decoded_q_baseband = q_decode
         #now unmap to find the returned data (just for fun pretty much)
         #this will be a bitstream
         #_,bitstream = self.unmap_from_constellation(decoded_iq)
         #qam_signal.decoded_bitstream = bitstream
     
-    def apply_rrc_filter(self,qam_signal):
+    def apply_rrc_filter(self,qam_signal,overwrite=True,source='):
         '''
         @brief apply a root raised cosine filter to the i and q baseband signals
             of the provided QAMSignal
         @param[in] qam_signal - QAMSignal object with an encoded i and q baseband
+        @param[in/OPT] overwrite - whether or not to overwrite qam_signal data or just return the signals
         '''
+        number_of_periods = 15 #number of periods in both directions the filter extends to
         #generate filter
         symbol_period = 1/qam_signal.options['baud_rate'] #in seconds
         time_step = 1/qam_signal.options['sample_frequency']
-        rrc_filt_times = np.arange(-symbol_period/2,symbol_period/2+time_step,time_step)
+        rrc_filt_times = np.arange(-symbol_period*number_of_periods,symbol_period*number_of_periods+time_step,time_step)
         rrc_filt = generate_root_raised_cosine(1,symbol_period,rrc_filt_times)
         rrc_filt = rrc_filt/rrc_filt.max() #normalize peak to 1
         #now apply ot hte baseband signals
-        qam_signal.i_baseband = np.convolve(qam_signal.i_baseband,rrc_filt,'same')
-        qam_signal.q_baseband = np.convolve(qam_signal.q_baseband,rrc_filt,'same')
+        i_bb = np.convolve(qam_signal.i_baseband,rrc_filt,'same')
+        q_bb = np.convolve(qam_signal.q_baseband,rrc_filt,'same')
+        if overwrite:
+            qam_signal.i_baseband = i_bb
+            qam_signal.q_baseband = q_bb
+        return i_bb,q_bb
+    
+    ##########################################################################
+    # Functions for up and downconverting to the carrier frequency
+    ##########################################################################
+    def upconvert(self,qam_signal):
+        '''
+        @brief upconvert our baseband signals with a provided carrier frequency
+        @param[in] qam_signal - structure for the qam signal with encoded baseband
+        '''
+        fc = self.options['carrier_frequency']
+        II = qam_signal.i_baseband*np.cos(2.*np.pi*fc*qam_signal.times);
+        QQ = qam_signal.q_baseband*-np.sin(2.*np.pi*fc*qam_signal.times);
+        IQ = II+QQ;
+        qam_signal.rf_signal = IQ
+        
+    def downconvert(self,qam_signal):
+        '''
+        @brief downconvert our rf signal back down to our baseband and store in 
+            qam_signal.if_i and qam_signal.if_q
+        '''
+        fc = self.options['carrier_frequency']
+        i_bb =  qam_signal.rf_signal*np.cos(np.pi*2.*fc*qam_signal.times);#/np.sum(np.square(np.cos(np.pi*2.*self.fc*times)))
+        q_bb = -qam_signal.rf_signal*np.sin(np.pi*2.*fc*qam_signal.times);#/np.sum(np.square(np.sin(np.pi*2.*self.fc*times)))
+        
+        i_bb = lowpass_filter(i_bb,1/self.options['sample_frequency'],300e6)
+        
+        qam_signal.if_i = i_bb
+        qam_signal.if_q = q_bb
+        
+        return i_bb,q_bb;
     
     ##########################################################################
     # Functions for correction of mag/phase
@@ -150,7 +196,6 @@ class QAMModem(Modulation):
         true_phase = np.angle(qam_signal.data_iq)
         true_mag   = np.abs(qam_signal.data_iq)
         #now get the magnitudes and phases of our measured
-        self.decode_baseband(qam_signal) #decode current iq to calculate
         meas_phase = np.angle(qam_signal.decoded_iq)
         meas_mag   = np.abs(qam_signal.decoded_iq)
         #now get the mean phase and mean scale of the mag
@@ -158,26 +203,32 @@ class QAMModem(Modulation):
         phase_cor = np.mean(true_phase-meas_phase)
         qam_signal.mag_correction = mag_cor
         qam_signal.phase_correction = phase_cor
+        return mag_cor,phase_cor
     
     def correct_decoded_iq(self,qam_signal):
         '''
         @brief apply calculated correction to current decoded iq signals. if a correction
             doesnt currently exist than calculate it
         '''
-        if qam_signal.mag_correction is None or qam_signal.phase_corrections is None: #then calculate the correction
-            self._calculate_iq_correction(qam_signal)
+        if qam_signal.mag_correction is None or qam_signal.phase_correction is None: #then calculate the correction
+            mag_cor,phase_cor = self._calculate_iq_correction(qam_signal)
+        else:
+            mag_cor = qam_signal.mag_correction
+            phase_cor = qam_signal.phase_correction
         self._adjust_decoded_mag(qam_signal,qam_signal.mag_correction)
         self._adjust_decoded_phase(qam_signal,qam_signal.phase_correction)
+        return mag_cor,phase_cor
         
     def correct_iq(self,qam_signal):
         '''
         @brief apply calculated correction to current baseband iq signals. if a correction
             doesnt currently exist than calculate it
         '''
-        if qam_signal.mag_correction is None or qam_signal.phase_corrections is None: #then calculate the correction
+        if qam_signal.mag_correction is None or qam_signal.phase_correction is None: #then calculate the correction
             self._calculate_iq_correction(qam_signal)
         self._adjust_iq_mag(qam_signal,qam_signal.mag_correction)
         self._adjust_iq_phase(qam_signal,qam_signal.phase_correction)
+        self.correct_decoded_iq(qam_signal) #also correct the decoded data
     
     def _adjust_iq_mag(self,qam_signal,mag_mult):
         '''
@@ -185,8 +236,8 @@ class QAMModem(Modulation):
         @param[in] qam_signal - signal to adjust
         @param[in] mag_mult- multiplier to adjust by
         '''
-        adjusted_i = np.zeros_like(qam_signal.i_baseband)
-        adjusted_q = np.zeros_like(qam_signal.q_baseband)
+        adjusted_i = np.zeros_like(qam_signal._decoded_i_baseband)
+        adjusted_q = np.zeros_like(qam_signal._decoded_q_baseband)
         baseband = qam_signal.i_baseband+1j*qam_signal.q_baseband
         for i,val in enumerate(baseband):
            mag,phase = cmath.polar(val)
@@ -194,8 +245,8 @@ class QAMModem(Modulation):
            adj_iq = cmath.rect(mag,phase)
            adjusted_i[i] = adj_iq.real
            adjusted_q[i] = adj_iq.imag
-        qam_signal.i_baseband = adjusted_i
-        qam_signal.q_baseband = adjusted_q
+        qam_signal._decoded_i_baseband = adjusted_i
+        qam_signal._decoded_q_baseband = adjusted_q
         
     def _adjust_decoded_mag(self,qam_signal,mag_mult):
         '''
@@ -410,14 +461,40 @@ class QAMSignal(ModulatedSignal):
         self.i_baseband = None
         self.q_baseband = None
         self.times      = None
-        self.clock      = None #pulse train for the sampling locations
+        self.clock_sine = None #pulse train for the sampling locations
         
         #decoded values
         self.decoded_iq = None
+        self._decoded_i_baseband = None
+        self._decoded_q_baseband = None
         self.decoded_bitstream = None
         self.phase_correction = None
         self.mag_correction = None
         
+        #RF (upconverted) values
+        self.rf_signal = None
+        self.if_i = None #downconverted values from rf signal
+        self.if_q = None 
+        
+    @property
+    def clock(self):
+        '''
+        @brief get a clock pulse train from sinusoid zero crossings
+        '''
+        clk_tf = self.clock_sine>=0
+        clk_diff = np.diff(clk_tf)
+        clk_diff = np.append(clk_diff,False)
+        clk = clk_diff.astype(np.int8)
+        return clk
+        
+    def plot_rf(self):
+        '''
+        @brief plot the upconverted rf signal
+        '''
+        plt.figure()
+        plt.plot(self.times,self.rf_signal)
+        return plt.gca()
+    
     def plot_baseband(self):
         '''
         @brief plot the i and q baseband signals
@@ -433,6 +510,21 @@ class QAMSignal(ModulatedSignal):
         ax.set_ylabel('Magnitude')
         return fig
     
+    def plot_decoded_baseband(self):
+        '''
+        @brief plot the decoded i and q baseband signals
+        '''
+        fig = plt.figure()
+        plt.plot(self.times,self._decoded_i_baseband,label="I Baseband")
+        plt.plot(self.times,self._decoded_q_baseband,label="Q Baseband")
+        plt_min = np.min([self._decoded_i_baseband.min(),self._decoded_q_baseband.min()])
+        plt_max = np.max([self._decoded_i_baseband.max(),self._decoded_q_baseband.max()])
+        plt.plot(self.times,self.clock*(plt_max-plt_min)+plt_min)
+        ax = plt.gca()
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Magnitude')
+        return fig
+    
     def plot_iq(self,ax=None):
         '''
         @brief plot the current i_baseband and q_baseband onto a 2d iq plot
@@ -442,6 +534,17 @@ class QAMSignal(ModulatedSignal):
             plt.figure()
             ax = plt.gca()
         ax.plot(self.i_baseband,self.q_baseband)
+        return ax
+    
+    def plot_decoded_iq(self,ax=None):
+        '''
+        @brief plot the current _decoded_i_baseband and _decoded_q_baseband onto a 2d iq plot
+        @param[in/OPT] ax - axis to plot on. if none make one
+        '''
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+        ax.plot(self._decoded_i_baseband,self._decoded_q_baseband)
         return ax
     
     def plot_decoded_points(self,ax=None):
@@ -481,17 +584,22 @@ if __name__=='__main__':
     fig=myqm.plot_constellation()
     #mymap,inbits = myq.map_to_constellation(bytearray('testing'.encode()))
     #data = 'testing'.encode()
-    data = np.random.random(2)
+    data = np.random.random(5)
+    #data = [255,255,255]
     myqam = myqm.encode_baseband(bytearray(data))
     #myqam.plot_baseband()
     #plt.plot(myqam.times,myqam.clock*2-1)
     #plt.plot(myqam.times,myqam.clock*2-1)
-    myqm.correct_iq(myqam)
     myqm.decode_baseband(myqam)
+    myqm.correct_iq(myqam)
     ax = fig.gca()
-    myqam.plot_iq(ax)
-    myqam.plot_decoded_points(ax)
-    myqam.plot_baseband()
+    #myqam.plot_decoded_iq(ax)
+    #myqam.plot_decoded_points(ax)
+    #myqam.plot_decoded_baseband()
+    myqm.upconvert(myqam)
+    myqm.downconvert(myqam)
+    myqam.plot_rf()
+    myqam.plot_downconverted_if()
     myevm = myqm.calculate_evm(myqam)
     print(myevm)
     #inbits = np.unpackbits(bytearray('testing'.encode()))

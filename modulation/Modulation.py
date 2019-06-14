@@ -6,6 +6,7 @@ Classes are labeled with numpy style, meethods are labeled with doxygen style
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 class Modulation:
     '''
@@ -100,11 +101,27 @@ class ModulatedSignal:
         '''
         self.options = {}
         self.options['sample_frequency']   = 100e9
-        self.options['carrier_frequency'] = 1e9
+        self.options['carrier_frequency'] = 10e9
         self.options['baud_rate']         = 1e6
         self.options['type']              = None
         for k,v in arg_options.items():
             self.options[k] = v
+        
+        self.data = None
+        self.baseband = {} #dictionary of different baseband info
+        self.rf_signal
+    
+    @property
+    def bitstream(self):
+        '''
+        @brief get a bitstream of the data
+        '''
+    
+    def plot_baseband(self):
+        '''
+        @brief plot all baseband data
+        '''
+        
    
    
 def generate_gray_code_mapping(num_codes,constellation_function):
@@ -162,9 +179,9 @@ def generate_root_raised_cosine_v1(beta,Ts,times):
     #right now runs saved values in
     #def run_impulse_response()
     
-def generate_root_raised_cosine(beta,Ts,times):
+def generate_raised_cosine(beta,Ts,times):
     '''
-    @brief generate a raised root cosine filter (from  https://dspguru.com/dsp/reference/raised-cosine-and-root-raised-cosine-formulas/)
+    @brief generate a raised cosine filter (from  https://dspguru.com/dsp/reference/raised-cosine-and-root-raised-cosine-formulas/)
     @param[in] beta - rolloff factor 
     @param[in] Ts   - symbol period
     @param[in] times - times at which to evaluate the filter
@@ -173,6 +190,22 @@ def generate_root_raised_cosine(beta,Ts,times):
     sin_term = np.sin(np.pi*times/Ts)/(np.pi*times)
     cos_term = np.cos(np.pi*times*beta/Ts)/(1-4*beta**2*times**2/Ts**2)
     h = sin_term*cos_term
+    return h
+    #right now runs saved values in
+    #def run_impulse_response()
+    
+def generate_root_raised_cosine(beta,Ts,times):
+    '''
+    @brief generate a raised root cosine filter (from  https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20120008631.pdf)
+    @param[in] beta - rolloff factor 
+    @param[in] Ts   - symbol period
+    @param[in] times - times at which to evaluate the filter
+    '''
+    times = np.array(times)
+    term_1 = 2*beta/(np.pi*np.sqrt(Ts))
+    term_2_numerator = np.cos((1+beta)*np.pi*times/Ts)+np.sin((1-beta)*np.pi*times/Ts)/(4*beta*times/Ts)
+    term_2_denominator = 1-(4*beta*times/Ts)**2
+    h = term_1*term_2_numerator/term_2_denominator
     return h
     #right now runs saved values in
     #def run_impulse_response()
@@ -200,4 +233,11 @@ if __name__=='__main__':
     dirac_conv_conv = np.convolve(dirac_conv,h,'same')
     plt.plot(times,dirac_conv_conv)  
 
-
+import scipy.signal
+def lowpass_filter(data,time_step,cutoff_freq,order=3):
+        # from https://stackoverflow.com/questions/25191620/creating-lowpass-filter-in-scipy-understanding-methods-and-units
+        nyq = 0.5/time_step;
+        norm_cut = cutoff_freq/nyq;
+        b,a = scipy.signal.butter(order,norm_cut,btype='low',analog=False)
+        out = scipy.signal.lfilter(b,a,data);
+        return out;
