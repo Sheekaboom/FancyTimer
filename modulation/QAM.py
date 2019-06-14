@@ -227,7 +227,7 @@ class QAMModem(Modulation):
         qam_signal.I = data.real
         qam_signal.Q = data.imag
         #now decode again
-        self.decode_baseband(qam_signal)
+        return self.decode_baseband(qam_signal)
         
     def calculate_time_shift(self,input_signal,output_signal):
         '''
@@ -463,7 +463,7 @@ class QAMSignal(ModulatedSignal):
         '''
         self.baseband_dict['q'] = val
     
-    def plot_iq(self,ax=None):
+    def plot_iq(self,ax=None,**kwargs):
         '''
         @brief plot the current i_baseband and q_baseband onto a 2d iq plot
         @param[in/OPT] ax - axis to plot on. if none make one
@@ -471,10 +471,10 @@ class QAMSignal(ModulatedSignal):
         if ax is None:
             plt.figure()
             ax = plt.gca()
-        ax.plot(self.i_baseband,self.q_baseband)
+        ax.plot(self.I,self.Q,**kwargs)
         return ax
     
-    def plot_decoded_points(self,ax=None):
+    def plot_data(self,ax=None,**kwargs):
         '''
         @brief plot the decoded data onto an iq plot (constellation diagram)
         @param[in/OPT] ax - axis to plot on. if none make one
@@ -482,7 +482,7 @@ class QAMSignal(ModulatedSignal):
         if ax is None:
             plt.figure()
             ax = plt.gca()
-        ax.scatter(self.decoded_iq.real,self.decoded_iq.imag)
+        ax.scatter(self.data_iq.real,self.data_iq.imag,**kwargs)
 
 class QAMCorrection():
     '''
@@ -552,11 +552,11 @@ if __name__=='__main__':
     #for c in np.flip(codes,axis=1):
     #    print(c)
 
-    mymodem = QAMModem(16)
+    mymodem = QAMModem(256)
     #fig=myqm.plot_constellation()
     #mymap,inbits = myq.map_to_constellation(bytearray('testing'.encode()))
     data = 'testing'.encode()
-    #data = np.random.random(5)
+    data = np.random.random(10)
     #data = [255,255,255]
     
     print("Encoding")
@@ -579,7 +579,7 @@ if __name__=='__main__':
     
     #decode the data
     print("Decoding")
-    mybb = mymodem.decode_baseband(outqam)
+    mymodem.decode_baseband(outqam)
     
     #correct the data
     print("Applying Corrections")
@@ -588,10 +588,13 @@ if __name__=='__main__':
     mymodem.shift_clock(outqam,time_shift)
     #mag/phase correction
     correction = mymodem.calculate_iq_correction(inqam,outqam)
-    mymodem.correct_iq(outqam,correction)
+    mybb = mymodem.correct_iq(outqam,correction)
     
     testqam = copy.deepcopy(outqam)
     testqam.baseband_dict = mybb
+    fig = mymodem.plot_constellation()
+    testqam.plot_data(fig.gca(),color='red')
+    testqam.plot_iq(fig.gca(),color='gray')
     
     #calculate metrics
     print("Calculating EVM")
