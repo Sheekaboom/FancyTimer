@@ -248,7 +248,7 @@ if __name__=='__main__':
     plt.plot(times,dirac_conv_conv)  
 
 import scipy.signal
-def lowpass_filter(data,time_step,cutoff_freq,order=3):
+def lowpass_filter(data,time_step,cutoff_freq,order=5):
         # from https://stackoverflow.com/questions/25191620/creating-lowpass-filter-in-scipy-understanding-methods-and-units
         nyq = 0.5/time_step;
         norm_cut = cutoff_freq/nyq;

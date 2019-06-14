@@ -77,7 +77,7 @@ class QAMModem(Modulation):
         iq_vals,_ = self.map_to_constellation(data,**arg_options) #get our complex data
         i_vals = iq_vals.real; q_vals = iq_vals.imag
         #generate time information
-        buffer = 15 #number of symbols to buffer on edge
+        buffer = 20 #number of symbols to buffer on edge
         num_symbols = len(iq_vals)+buffer*2
         symbol_period = 1/self.options['baud_rate'] #in seconds
         time_step = 1/self.options['sample_frequency']
@@ -90,12 +90,17 @@ class QAMModem(Modulation):
         i_sig = np.zeros_like(times); q_sig = np.zeros_like(times)
         i_sig[symbol_start:symbol_end:steps_per_symbol] = i_vals
         q_sig[symbol_start:symbol_end:steps_per_symbol] = q_vals
+        
         #clock = np.zeros_like(times,dtype=np.int8) #clocking pulse train
         #clock[symbol_start:symbol_end:steps_per_symbol] = 1
+        
         clock_sine = np.zeros_like(times)
         clock_times = times[symbol_start:symbol_end]-times[symbol_start]
         clock_phase = np.pi
-        clock_sine[symbol_start:symbol_end] = np.sin(2*np.pi*self.options['baud_rate']/2*clock_times+clock_phase)
+        clock_sine[symbol_start:symbol_end] = (
+            np.sin(2*np.pi*self.options['baud_rate']/2*clock_times+clock_phase)
+            #*(-np.cos(2*np.pi*(1/clock_times.max())*clock_times)+1)/2
+            )
         #pack into class
         myqam = QAMSignal(data,**self.options) #build the waveform class
         myqam.data_iq = iq_vals
@@ -103,6 +108,7 @@ class QAMModem(Modulation):
         myqam.baseband_dict['i'] = i_sig
         myqam.baseband_dict['q'] = q_sig
         myqam.clock_sine = clock_sine
+        #myqam.clock = clock
         #now filter
         self.apply_rrc_filter(myqam)
 
@@ -134,7 +140,7 @@ class QAMModem(Modulation):
         @param[in] qam_signal - QAMSignal object with an encoded i and q baseband
         @param[in/OPT] overwrite - whether or not to overwrite qam_signal data or just return the signals
         '''
-        number_of_periods = 15 #number of periods in both directions the filter extends to
+        number_of_periods = 20 #number of periods in both directions the filter extends to
         #generate filter
         symbol_period = 1/qam_signal.options['baud_rate'] #in seconds
         time_step = 1/qam_signal.options['sample_frequency']
@@ -171,11 +177,16 @@ class QAMModem(Modulation):
         i_bb =  qam_signal.rf_signal*np.cos(np.pi*2.*fc*qam_signal.times);#/np.sum(np.square(np.cos(np.pi*2.*self.fc*times)))
         q_bb = -qam_signal.rf_signal*np.sin(np.pi*2.*fc*qam_signal.times);#/np.sum(np.square(np.sin(np.pi*2.*self.fc*times)))
         
-        i_bb = lowpass_filter(i_bb,1/self.options['sample_frequency'],300e6)
-        q_bb = lowpass_filter(q_bb,1/self.options['sample_frequency'],300e6)
+        #i_bb = lowpass_filter(i_bb,1/self.options['sample_frequency'],2e9)
+        #q_bb = lowpass_filter(q_bb,1/self.options['sample_frequency'],2e9)
+        
+        #shift clock triggers too
+        #clk_sin = qam_signal.clock_sine
+        #clk_sin = lowpass_filter(clk_sin,1/self.options['sample_frequency'],300e6)
         
         qam_signal.baseband_dict['i'] = i_bb
         qam_signal.baseband_dict['q'] = q_bb
+        #qam_signal.clock_sine = clk_sin
         
         baseband_dict = {'i':i_bb,'q':q_bb}
         return baseband_dict
@@ -217,6 +228,28 @@ class QAMModem(Modulation):
         qam_signal.Q = data.imag
         #now decode again
         self.decode_baseband(qam_signal)
+        
+    def calculate_time_shift(self,input_signal,output_signal):
+        '''
+        @brief calculate the time shift caused by the channel
+            This is currently done using a correlation approach and assuming
+            there is a consistent shift in the time
+        '''
+        center_idx = (output_signal.I.shape[0]/2) #center index. assume I and q same length
+        #find the average shift between i and q
+        corr_i_idx = np.correlate(input_signal.I,output_signal.I,mode='same').argmax()
+        corr_q_idx = np.correlate(input_signal.Q,output_signal.Q,mode='same').argmax()
+        corr_mean_idx = np.mean([corr_i_idx,corr_q_idx])
+        shift = int(center_idx-corr_mean_idx)
+        return shift
+    
+    def shift_clock(self,qam_signal,shift):
+        '''
+        @brief adjust the clock of a qam signal by a given number of indices
+        @param[in] qam_signal - signal to shift clock of
+        @param[in] shift - integer to shift the signal indices by
+        '''
+        qam_signal.clock_sine = np.roll(qam_signal.clock_sine,shift)
 
     ##########################################################################
     # Functions for applying things like channels to rf signal
@@ -394,6 +427,10 @@ class QAMSignal(ModulatedSignal):
         '''
         @brief get a clock pulse train from sinusoid zero crossings
         '''
+        #normalize values to 1
+        #clock_norm = self.clock_sine/self.clock_sine.max()
+        #round to prevent small changes from effecting
+        #clock_round = np.round(clock_norm,10)
         clk_tf = self.clock_sine>=0
         clk_diff = np.diff(clk_tf)
         clk_diff = np.append(clk_diff,False)
@@ -523,13 +560,14 @@ if __name__=='__main__':
     #data = [255,255,255]
     
     print("Encoding")
-    inqam = myqm.encode_baseband(bytearray(data))
+    inqam = mymodem.encode_baseband(bytearray(data))
     mymodem.upconvert(inqam)
     #myqam.plot_baseband()
     #myqam.plot_rf()
     
     #upconvert
     print("Upconverting")
+    mymodem.upconvert(inqam)
     
     #run through channel
     print("Applying Channel")
@@ -537,6 +575,7 @@ if __name__=='__main__':
 
     #downconvert
     print("Downconverting")
+    mymodem.downconvert(outqam)
     
     #decode the data
     print("Decoding")
@@ -544,6 +583,10 @@ if __name__=='__main__':
     
     #correct the data
     print("Applying Correction")
+    #time correction
+    time_shift = mymodem.calculate_time_shift(inqam,outqam)
+    mymodem.shift_clock(outqam,time_shift)
+    #mag/phase correction
     correction = mymodem.calculate_iq_correction(inqam,outqam)
     mymodem.correct_iq(outqam,correction)
     
