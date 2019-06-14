@@ -142,7 +142,13 @@ def get_num_bits(number):
     #num_bits = mybits.shape[0] - ones_loc[0]
     return num_bits
    
-def generate_root_raised_cosine(beta,Ts,times):
+def generate_root_raised_cosine_v1(beta,Ts,times):
+    '''
+    @brief generate a raised root cosine filter (from wikipedia equations)
+    @param[in] beta - rolloff factor 
+    @param[in] Ts   - symbol period
+    @param[in] times - times at which to evaluate the filter
+    '''
     times = np.array(times)
     h = np.zeros(times.shape)
     for i,t in enumerate(times): #go through each time and calculate
@@ -152,6 +158,21 @@ def generate_root_raised_cosine(beta,Ts,times):
             h[i] = beta/(Ts*np.sqrt(2))*((1+2/np.pi)*np.sin(np.pi/(4*beta))+(1-2/np.pi)*np.cos(np.pi/(4*beta)))
         else:
             h[i] = 1/Ts*(np.sin(np.pi*(t/Ts)*(1-beta))+4*beta*(t/Ts)*np.cos(np.pi*(t/Ts)*(1+beta)))/(np.pi*(t/Ts)*(1-(4*beta*(t/Ts))**2))
+    return h
+    #right now runs saved values in
+    #def run_impulse_response()
+    
+def generate_root_raised_cosine(beta,Ts,times):
+    '''
+    @brief generate a raised root cosine filter (from  https://dspguru.com/dsp/reference/raised-cosine-and-root-raised-cosine-formulas/)
+    @param[in] beta - rolloff factor 
+    @param[in] Ts   - symbol period
+    @param[in] times - times at which to evaluate the filter
+    '''
+    times = np.array(times)
+    sin_term = np.sin(np.pi*times/Ts)/(np.pi*times)
+    cos_term = np.cos(np.pi*times*beta/Ts)/(1-4*beta**2*times**2/Ts**2)
+    h = sin_term*cos_term
     return h
     #right now runs saved values in
     #def run_impulse_response()
