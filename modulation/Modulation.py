@@ -77,15 +77,6 @@ class Modulation:
     def downconvert(self):
         raise NotImplementedError("Please implmenet a 'downconvert' method")
 
-       
-    def get_bits(self,data):
-        '''
-        @brief method to get the bits from input data
-        @param[in] data - input data to get bits from
-        '''
-        data_ba = bytearray(data)
-        bits = np.unpackbits(data_ba)
-        return bits
     
 class ModulatedSignal:
     '''
@@ -107,22 +98,45 @@ class ModulatedSignal:
         for k,v in arg_options.items():
             self.options[k] = v
         
+        self.times = None
         self.data = None
-        self.baseband = {} #dictionary of different baseband info
-        self.rf_signal
+        self.baseband_dict = {} #dictionary for i and q
+        self.rf_signal = None
     
     @property
     def bitstream(self):
         '''
         @brief get a bitstream of the data
         '''
+        data_ba = bytearray(self.data)
+        bits = np.unpackbits(data_ba)
+        return bits
     
     def plot_baseband(self):
         '''
         @brief plot all baseband data
         '''
-        
+        fig = plt.figure()
+        all_baseband = []
+        for key,val in self.baseband_dict.items():
+            plt.plot(self.times,val,label="{} Baseband".format(key))
+            all_baseband.append(val)
+            
+        plt_min = np.min(all_baseband)
+        plt_max = np.max(all_baseband)
+        plt.plot(self.times,self.clock*(plt_max-plt_min)+plt_min)
+        ax = plt.gca()
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Magnitude')
+        return fig
    
+    def plot_rf(self):
+        '''
+        @brief plot the upconverted rf signal
+        '''
+        plt.figure()
+        plt.plot(self.times,self.rf_signal)
+        return plt.gca()
    
 def generate_gray_code_mapping(num_codes,constellation_function):
     '''
