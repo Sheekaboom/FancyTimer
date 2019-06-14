@@ -54,8 +54,8 @@ class Modulation:
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
         self.options = {}
-        self.options['sample_frequency']   = 100e9
-        self.options['carrier_frequency'] = 1e9
+        self.options['sample_frequency']   = 200e9
+        self.options['carrier_frequency'] = 20e9
         self.options['baud_rate']         = 100e6
         for k,v in arg_options.items():
             self.options[k] = v
@@ -91,9 +91,9 @@ class ModulatedSignal:
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
         self.options = {}
-        self.options['sample_frequency']   = 100e9
-        self.options['carrier_frequency'] = 10e9
-        self.options['baud_rate']         = 1e6
+        self.options['sample_frequency']   = 200e9
+        self.options['carrier_frequency'] = 20e9
+        self.options['baud_rate']         = 100e6
         self.options['type']              = None
         for k,v in arg_options.items():
             self.options[k] = v

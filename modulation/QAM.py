@@ -579,16 +579,19 @@ if __name__=='__main__':
     
     #decode the data
     print("Decoding")
-    mymodem.decode_baseband(outqam)
+    mybb = mymodem.decode_baseband(outqam)
     
     #correct the data
-    print("Applying Correction")
+    print("Applying Corrections")
     #time correction
     time_shift = mymodem.calculate_time_shift(inqam,outqam)
     mymodem.shift_clock(outqam,time_shift)
     #mag/phase correction
     correction = mymodem.calculate_iq_correction(inqam,outqam)
     mymodem.correct_iq(outqam,correction)
+    
+    testqam = copy.deepcopy(outqam)
+    testqam.baseband_dict = mybb
     
     #calculate metrics
     print("Calculating EVM")
