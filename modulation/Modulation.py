@@ -8,7 +8,7 @@ Classes are labeled with numpy style, meethods are labeled with doxygen style
 import numpy as np
 import matplotlib.pyplot as plt
 
-class Modulation:
+class Modem:
     '''
     This is a class for describing a modulation scheme. This will be inherited 
     by other modulation modules as subclasses.
@@ -77,15 +77,26 @@ class Modulation:
     def downconvert(self):
         raise NotImplementedError("Please implmenet a 'downconvert' method")
 
+    def __getattr__(self,name):
+        '''
+        @brief check our options dictionary if an attirbute doesnt exist
+        '''
+        if hasattr(self,'options'):
+            try:
+                rv = self.options[name]
+                return rv
+            except KeyError:
+                raise AttributeError
     
 class ModulatedSignal:
     '''
     @brief class to provide a template for a modulated signal
     This is simply a structure to hold all of the data describing the signal
     '''
-    def __init__(self,**arg_options):
+    def __init__(self,data=None,**arg_options):
         '''
         @brief constructor to get options (and do other things)
+        @param[in\OPT] data - data to be modulated
         @param[in/OPT] arg_options - keyword arguments as follows
             sample_frequency - frequency for sample points
             carrier_frequency - frequency our qam will be upconverted to upon modulation
@@ -99,7 +110,8 @@ class ModulatedSignal:
             self.options[k] = v
         
         self.times = None
-        self.data = None
+        self.data = data
+        self.data_type = type(data)
         self.baseband_dict = {} #dictionary for i and q
         self.rf_signal = None
     
@@ -128,6 +140,7 @@ class ModulatedSignal:
         ax = plt.gca()
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Magnitude')
+        ax.legend()
         return fig
    
     def plot_rf(self):
@@ -137,7 +150,8 @@ class ModulatedSignal:
         plt.figure()
         plt.plot(self.times,self.rf_signal)
         return plt.gca()
-   
+        
+    
 def generate_gray_code_mapping(num_codes,constellation_function):
     '''
     @brief generate gray codes for a given number of codes
@@ -255,3 +269,25 @@ def lowpass_filter(data,time_step,cutoff_freq,order=5):
         b,a = scipy.signal.butter(order,norm_cut,btype='low',analog=False)
         out = scipy.signal.lfilter(b,a,data);
         return out;
+    
+def lowpass_filter_zero_phase(data,time_step,cutoff_freq,order=5):
+        # from https://stackoverflow.com/questions/25191620/creating-lowpass-filter-in-scipy-understanding-methods-and-units
+    nyq = 0.5/time_step;
+    norm_cut = cutoff_freq/nyq;
+    b,a = scipy.signal.butter(order,norm_cut,btype='low',analog=False)
+    out = scipy.signal.filtfilt(b,a,data);
+    return out;
+
+def bandstop_filter(data,time_step,cutoff_freq,q_factor=20):
+    nyq = 0.5/time_step;
+    norm_cut = cutoff_freq/nyq;
+    b,a = scipy.signal.iirnotch(norm_cut,q_factor)
+    out = scipy.signal.filtfilt(b,a,data);
+    return out;
+
+def plot_frequency_domain(data,dt):
+    f_data = np.fft.fft(data)
+    f_freqs= np.fft.fftfreq(len(f_data),dt)
+    fig = plt.figure()
+    plt.plot(f_freqs,f_data)
+    return fig

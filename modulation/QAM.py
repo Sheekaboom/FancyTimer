@@ -6,13 +6,13 @@ Created on Thu Jun  6 18:45:52 2019
 """
 
 import numpy as np
-from Modulation import Modulation
+from Modulation import Modem
 from Modulation import generate_gray_code_mapping,generate_root_raised_cosine,lowpass_filter
 import numpy as np
 import matplotlib.pyplot as plt
 import cmath
 
-class QAMModem(Modulation):
+class QAMModem(Modem):
     '''
     A class to modulate a set of data using an M-QAM modulation scheme.
     Inherits from the Modulation superclass
@@ -260,7 +260,7 @@ class QAMModem(Modulation):
             bitstream - True if the data is a bitstream (array of 1s and 0s) (default False)
         @return a list of complex numbers for the corresponding mapping, mapped bitstream
         '''
-        return self.constellation.map(data,**arg_options)
+        return self.constellation.map(data,**arg_options),'bitstream not returned'
     
     def unmap_from_constellation(self,locations):
         '''
@@ -441,7 +441,7 @@ class QAMConstellation():
         for pack in split_bits:
             loc = self._get_location(pack)
             locations.append(loc)
-        return np.array(locations),bitstream
+        return np.array(locations)
     
     def unmap(self,locations):
         '''
@@ -556,6 +556,7 @@ def generate_qam_position(code_number,num_codes):
 
 import copy
 if __name__=='__main__':
+    from Modulation import plot_frequency_domain
     #q256 = QAMConstellation(16)
     #q256.plot()
 
@@ -579,6 +580,7 @@ if __name__=='__main__':
     #run through channel
     print("Applying Channel")
     outqam = copy.deepcopy(inqam)
+    plot_frequency_domain(outqam.rf_signal,np.diff(outqam.times).mean())
 
     #downconvert
     print("Downconverting")
