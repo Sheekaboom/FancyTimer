@@ -202,9 +202,10 @@ class QAMModem(Modem):
         '''
         center_idx = (output_signal.I.shape[0]/2) #center index. assume I and q same length
         #find the average shift between i and q
-        corr_i_idx = np.correlate(input_signal.I,output_signal.I,mode='same').argmax()
-        corr_q_idx = np.correlate(input_signal.Q,output_signal.Q,mode='same').argmax()
-        corr_mean_idx = np.mean([corr_i_idx,corr_q_idx])
+        #corr_i_idx = np.correlate(input_signal.I,output_signal.I,mode='same').argmax()
+        #corr_q_idx = np.correlate(input_signal.Q,output_signal.Q,mode='same').argmax()
+        #corr_mean_idx = np.mean([corr_i_idx,corr_q_idx])
+        corr_mean_idx = np.correlate(input_signal.rf_signal,output_signal.rf_signal,mode='same').argmax()
         shift = int(center_idx-corr_mean_idx)
         return shift
     
@@ -214,7 +215,7 @@ class QAMModem(Modem):
         @param[in] qam_signal - signal to shift clock of
         @param[in] shift - integer to shift the signal indices by
         '''
-        qam_signal.clock_sine = np.roll(qam_signal.clock_sine,shift)
+        qam_signal.clock_sine = np.roll(qam_signal.clock_sine,-shift)
 
     ##########################################################################
     # Functions for applying things like channels to rf signal
@@ -559,8 +560,9 @@ if __name__=='__main__':
     from Modulation import plot_frequency_domain
     #q256 = QAMConstellation(16)
     #q256.plot()
-
-    mymodem = QAMModem(64)
+    
+    mymodem = QAMModem(64,carrier_frequency = 28e9,sample_frequency=280e9)
+    '''
     #fig=myqm.plot_constellation()
     #mymap,inbits = myq.map_to_constellation(bytearray('testing'.encode()))
     data = 'testing'.encode()
@@ -579,12 +581,28 @@ if __name__=='__main__':
     
     #run through channel
     print("Applying Channel")
+    #inqam.apply_signal_to_snp_file('./test_data/los_optical_table.s2p','./test_data/los_mod.s2p')
+    [sf,sfd,f,fd] =inqam.apply_signal_to_snp_file('./test_data/all_ones.s2p','./test_data/all_ones_mod.s2p')
+    #inqam.apply_signal_to_snp_file('./test_data/impulse_response_qam.s2p','./test_data/impulse_response_mod.s2p')
+    inqam.plot_rf()
+    #plt.figure()
+    #plt.plot(f,fd)
+    #plt.scatter(sf,sfd,color='orange')
+    '''
     outqam = copy.deepcopy(inqam)
-    plot_frequency_domain(outqam.rf_signal,np.diff(outqam.times).mean())
-
+    outqam.load_signal_from_snp_file('./test_data/all_ones_mod.s2p')
+    #outqam.load_signal_from_snp_file('./test_data/impulse_response_mod.s2p')
+    #outqam.plot_rf()
+    #plot_frequency_domain(outqam.rf_signal,np.diff(outqam.times).mean())
+    
     #downconvert
     print("Downconverting")
     mymodem.downconvert(outqam)
+    
+    print("Time correcting clock")
+    time_shift = mymodem.calculate_time_shift(inqam,outqam)
+    mymodem.shift_clock(outqam,time_shift)
+    outqam.plot_baseband()
     
     #decode the data
     print("Decoding")
@@ -593,8 +611,7 @@ if __name__=='__main__':
     #correct the data
     print("Applying Corrections")
     #time correction
-    time_shift = mymodem.calculate_time_shift(inqam,outqam)
-    mymodem.shift_clock(outqam,time_shift)
+    
     #mag/phase correction
     correction = mymodem.calculate_iq_correction(inqam,outqam)
     mybb = mymodem.correct_iq(outqam,correction)
@@ -609,7 +626,7 @@ if __name__=='__main__':
     print("Calculating EVM")
     evm = mymodem.calculate_evm(inqam,outqam)
     print(evm)
-
+    
 
     
     

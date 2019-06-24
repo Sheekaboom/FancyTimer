@@ -109,7 +109,7 @@ class ModulatedSignal:
         for k,v in arg_options.items():
             self.options[k] = v
         
-        self.times = None
+        self.times = None #times for rf signal
         self.data = data
         self.data_type = type(data)
         self.baseband_dict = {} #dictionary for i and q
@@ -150,6 +150,60 @@ class ModulatedSignal:
         plt.figure()
         plt.plot(self.times,self.rf_signal)
         return plt.gca()
+    
+    def apply_signal_to_snp_file(self,snp_path,out_path):
+        '''
+        @brief apply the modulated signal to an snp file. This will apply to all channels
+        @param[in] snp_path - path to snp file to modulate
+        @param[in] out_path - path to output file that has been modulated
+        '''
+        #first get the frequency domain data from our rf data
+        freq_data = np.fft.fftshift(np.fft.fft(self.rf_signal))
+        df = 1/self.times.max() #get frequency step
+        N = len(self.times)
+        freqs = np.array([df*n for n in range(-int(N/2),int(N/2)+1)])
+       # freqs     = np.fft.fftfreq(len(freq_data),self.times[1]-self.times[0])
+        from samurai.analysis.support.snpEditor import SnpEditor #import snp editor
+        mysnp = SnpEditor(snp_path) #load the s2p file
+        sfreqs = mysnp.S[21].freq_list*1e9 #get our s parameter frequencies assume GHZ (not great)
+        angle_data = np.angle(freq_data)
+        mag_data = np.abs(freq_data)
+        freq_angle_interp = np.interp(sfreqs,freqs,angle_data)
+        freq_mag_interp = np.interp(sfreqs,freqs,mag_data)
+        freq_data_interp = freq_mag_interp*np.exp(1j*freq_angle_interp)
+        for k in mysnp.S.keys():
+            mysnp.S[k].raw *= freq_data_interp
+        mysnp.write(out_path)
+        return sfreqs,freq_data_interp,freqs,freq_data
+    
+    def apply_signal_to_samurai_metafile(self,metafile_path,out_dir):
+        '''
+        @brief apply the rf portion of the signal to a metafile for SAMURAI project
+            this will go through all of the s-parameters in the metafile, 
+            multiply the frequency domain version of the modulated signal by the s-param values,
+            and rewrite out a new metafile, and a new set of s-parameter files with the modulated signal
+        @param[in] metafile_path - path to the metafile to apply to
+        @param[in] out_dir - output directory to save the new measurements and metafile to 
+        '''
+        
+    def load_signal_from_snp_file(self,snp_path,load_key=21):
+        '''
+        @brief load an rf signal from a snp file and convert it to a time domain waveform.
+            this will overwrite self.rf_signal. self.times MUST be set previous to this call
+        @param[in] snp_path - path of the s2p file to load
+        @param[in/OPT] load_key - what parameter to load the data from (e.g. S21. this defaults to 21)
+        '''
+        from samurai.analysis.support.snpEditor import SnpEditor #import snp editor
+        #first load the snp file
+        mysnp = SnpEditor(snp_path)
+        sfreqs = mysnp.S[load_key].freq_list*1e9
+        sdata = mysnp.S[load_key].raw #raw frequency data
+        time_sdata = np.fft.ifft(sdata)
+        dt = (1/np.diff(sfreqs).mean())/len(time_sdata)
+        stimes = np.arange(len(time_sdata))*dt
+        rf_data = np.interp(self.times,stimes,time_sdata)
+        self.rf_signal = rf_data
+        return self.times,self.rf_signal
         
     
 def generate_gray_code_mapping(num_codes,constellation_function):
@@ -291,3 +345,49 @@ def plot_frequency_domain(data,dt):
     fig = plt.figure()
     plt.plot(f_freqs,f_data)
     return fig
+
+#naive fourier series calculations (non-uniform foureier transform)
+def dft(data,times,freqs_out):
+    '''
+    @brief calculate the fouerier series for nonuniform points
+    @param[in] data - f(t) values for the corresponding times
+    @param[in] times - times that correspond to the data points
+    @param[in] freqs_out - list of output frequencies to calculate for
+    '''
+    #ran out of memory for vectorized computation
+    freq_vals = []
+    print("%5d of %5d" %(0,len(freqs_out)),end='')
+    for i,f in enumerate(freqs_out):
+        print('\b'*14+"%5d of %5d" %(i+1,len(freqs_out)),end='')
+        data  = np.array(data).flatten()
+        times = np.array(times).flatten()
+        exp_val = np.exp(-1j*2*np.pi*f*times)
+        fv = (data*exp_val).sum()
+        freq_vals.append(fv)
+    print('')
+    return np.array(freq_vals)
+
+def idft(data,freqs,times_out):
+    '''
+    @brief calculate the inverser fourier series at nonuniform points
+    @param[in] data - F(f) values at corresponding frequencies
+    @param[in] freqs - corresponding frequencies to data
+    @param[in] times_out - times to calculate for
+    '''
+    times_out = -times_out #change -1j to 1j by dong this
+    time_vals = dft(data,freqs,times_out)
+    return time_vals
+
+
+
+
+
+
+
+
+
+
+
+
+
+
