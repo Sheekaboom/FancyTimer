@@ -17,8 +17,10 @@ MODULE BEAMFORMING_GENERIC
             ! @param[in] eps_r - relative permittivity (usually 1)
             ! @param[in] mu_r - relative permeability (usually 1)
             ! @return wavenumber from the provided input parameters
-            REAL, intent(in) :: frequency,eps_r,mu_r
+            REAL, intent(in) :: frequency
+            REAL, intent(in):: eps_r, mu_r
             REAL :: lambda
+            !check if eps_r and mu_r are provided
             lambda = get_lambda(frequency,eps_r,mu_r) 
             get_k = 2*PI/lambda
             RETURN
@@ -30,7 +32,9 @@ MODULE BEAMFORMING_GENERIC
             ! @param[in] eps_r - relative permittivity (usually 1)
             ! @param[in] mu_r - relative permeability (usually 1)
             ! @return wavelength from the provided input parameters
-            REAL, intent(in) :: frequency,eps_r,mu_r
+            REAL, intent(in) :: frequency
+            REAL, intent(in) :: eps_r, mu_r
+            !check if eps_r and mu_r are provided
             get_lambda = SPEED_OF_LIGHT/sqrt(eps_r*mu_r)/frequency
             RETURN
         END
@@ -50,6 +54,20 @@ MODULE BEAMFORMING_GENERIC
             ! return angle in degrees
             REAL, intent(in) :: angle_radians
             rad2deg = angle_radians*180./PI
+            RETURN
+        END
+
+        ELEMENTAL REAL FUNCTION lin2db(val_linear)
+            ! @brief change a linear value to db (10*log10 value)
+            REAL, intent(in) :: val_linear
+            lin2db = 10*LOG10(val_linear)
+            RETURN
+        END
+
+        ELEMENTAL REAL FUNCTION angle(complex_value)
+            ! @brief compute the angle of a complex number
+            COMPLEX, intent(in) :: complex_value
+            angle = ATAN2(AIMAG(complex_value),REAL(complex_value))
             RETURN
         END
 
