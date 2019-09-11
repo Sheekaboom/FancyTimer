@@ -420,7 +420,7 @@ class QAMConstellation():
             for raw bitstream use named argument 'bitstream' to True
         @param[in/OPT] arg_options - optional keyword arguments as follows:
             padding - value to pad bits with if encoding doesnt fit (default 0)
-            bitstream - True if the data is a bitstream (array of 1s and 0s) (default False)
+;            bitstream - True if the data is a bitstream (array of 1s and 0s) (default False)
         @return a list of complex numbers for the corresponding mapping, mapped bitstream
         '''
         options = {}
