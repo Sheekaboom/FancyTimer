@@ -7,44 +7,14 @@ Classes are labeled with numpy style, meethods are labeled with doxygen style
 
 import numpy as np
 import matplotlib.pyplot as plt
+from samurai.base.SamuraiDict import SamuraiDict
+from samurai.base.TouchstoneEditor import SnpEditor
+from samurai.base.TouchstoneEditor import DEFAULT_HEADER as DEFAULT_SNP_HEADER
 
-class Modem:
+class Modem(SamuraiDict):
     '''
     This is a class for describing a modulation scheme. This will be inherited 
     by other modulation modules as subclasses.
-    
-    Example
-    -------
-    Examples can be given using either the ``Example`` or ``Examples``
-    sections. Sections support any reStructuredText formatting, including
-    literal blocks::
-    
-        $ python example_numpy.py
-    
-    
-    Section breaks are created with two blank lines. Section breaks are also
-    implicitly created anytime a new section starts. Section bodies *may* be
-    indented:
-    
-    Notes
-    -----
-        This is an example of an indented section. It's like any other section,
-        but the body is indented to help it stand out from surrounding text.
-    
-    If a section is indented, then a section break is created by
-    resuming unindented text.
-    
-    Attributes
-    ----------
-    modulated_data
-        numpy list of time domain modulated data
-    
-    Methods
-    -------
-    modulate(data)
-        Overwrite method to modulate a set of input data.
-        data input should be be a bytearray
-        Raise NotImplementedError if not overwritten.
    '''
     def __init__(self,**arg_options):
         '''
@@ -53,12 +23,12 @@ class Modem:
             sample_frequency - frequency for sample points
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
-        self.options = {}
-        self.options['sample_frequency']   = 200e9
-        self.options['carrier_frequency'] = 20e9
-        self.options['baud_rate']         = 100e6
+        super().__init__()
+        self['sample_frequency']   = 200e9
+        self['carrier_frequency'] = 20e9
+        self['baud_rate']         = 100e6
         for k,v in arg_options.items():
-            self.options[k] = v
+            self[k] = v
         
    
     def modulate(self,data):
@@ -77,18 +47,24 @@ class Modem:
     def downconvert(self):
         raise NotImplementedError("Please implmenet a 'downconvert' method")
 
+    @property
+    def options(self):
+        '''
+        @brief have this to be backward compatable with options dictionary
+        '''
+        return self
+
     def __getattr__(self,name):
         '''
         @brief check our options dictionary if an attirbute doesnt exist
         '''
-        if hasattr(self,'options'):
-            try:
-                rv = self.options[name]
-                return rv
-            except KeyError:
-                raise AttributeError
+        try: #return value from the dictionary
+            rv = self[name]
+            return rv
+        except KeyError:
+            raise AttributeError
     
-class ModulatedSignal:
+class ModulatedSignal(SamuraiDict):
     '''
     @brief class to provide a template for a modulated signal
     This is simply a structure to hold all of the data describing the signal
@@ -101,13 +77,14 @@ class ModulatedSignal:
             sample_frequency - frequency for sample points
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
-        self.options = {}
-        self.options['sample_frequency']   = 200e9
-        self.options['carrier_frequency'] = 20e9
-        self.options['baud_rate']         = 100e6
-        self.options['type']              = None
+        super().__init__()
+        self['sample_frequency']   = 200e9
+        self['carrier_frequency'] = 20e9
+        self['baud_rate']         = 100e6
+        self['packets']           = None
+        self['type']              = None
         for k,v in arg_options.items():
-            self.options[k] = v
+            self[k] = v
         
         self.times = None #times for rf signal
         self.data = data
@@ -123,6 +100,13 @@ class ModulatedSignal:
         data_ba = bytearray(self.data)
         bits = np.unpackbits(data_ba)
         return bits
+
+    @property
+    def options(self):
+        '''
+        @brief have this to be backward compatable with options dictionary
+        '''
+        return self
     
     def plot_baseband(self):
         '''
@@ -163,8 +147,8 @@ class ModulatedSignal:
         N = len(self.times)
         freqs = np.array([df*n for n in range(-int(N/2),int(N/2)+1)])
        # freqs     = np.fft.fftfreq(len(freq_data),self.times[1]-self.times[0])
-        from samurai.analysis.support.snpEditor import SnpEditor #import snp editor
-        mysnp = SnpEditor(snp_path) #load the s2p file
+        from samurai.base.TouchstoneEditor import TouchstoneEditor #import snp editor
+        mysnp = TouchstoneEditor(snp_path) #load the s2p file
         sfreqs = mysnp.S[21].freq_list*1e9 #get our s parameter frequencies assume GHZ (not great)
         angle_data = np.angle(freq_data)
         mag_data = np.abs(freq_data)
@@ -185,6 +169,7 @@ class ModulatedSignal:
         @param[in] metafile_path - path to the metafile to apply to
         @param[in] out_dir - output directory to save the new measurements and metafile to 
         '''
+        pass
         
     def load_signal_from_snp_file(self,snp_path,load_key=21):
         '''
@@ -193,7 +178,7 @@ class ModulatedSignal:
         @param[in] snp_path - path of the s2p file to load
         @param[in/OPT] load_key - what parameter to load the data from (e.g. S21. this defaults to 21)
         '''
-        from samurai.analysis.support.snpEditor import SnpEditor #import snp editor
+        from samurai.base.TouchstoneEditor import SnpEditor #import snp editor
         #first load the snp file
         mysnp = SnpEditor(snp_path)
         sfreqs = mysnp.S[load_key].freq_list*1e9
@@ -291,6 +276,41 @@ def generate_root_raised_cosine(beta,Ts,times):
     return h
     #right now runs saved values in
     #def run_impulse_response()
+
+
+class ModulatedPacket(SnpEditor):
+    '''
+    @brief a class to save a single modulated packet. This could store time or frequency domain data but inherits from SnpEditor
+        Which is technically frequency domain. To do time, simply treat the frequencies as times.
+    '''
+    def __init__(self,packet_data,time_freq,**kwargs):
+        '''
+        @brief constructor class for a packet
+        @param[in] packet_data - iq packet data thats in the packet
+        @param[in] time_freq - frequency or time ('x' axis) for packet_data
+        @param[in/OPT] kwargs - keywrod arguments passed to SnpEditor init 
+        '''
+        super().__init__([1,time_freq],**kwargs) #init empty value
+        self.options['header'] = DEFAULT_SNP_HEADER
+        self.v1.raw = packet_data #set the packet data
+        
+    def _gen_dict_keys(self):
+        return [21]
+    
+    def plot_iq(self,constellation):
+        '''
+        @brief plot our iq data on top of a specified QAMConstellation object
+        @param[in] constellation - QAMConstellation object to plot the constellation.
+        @note CURRENTLY ONLY WORKS WITH MATPLOTLIB
+        '''
+        import matplotlib.pyplot as plt
+        constellation.plot()
+        i = self.v1.raw.real
+        q = self.v1.raw.imag
+        plt.plot(i,q)
+        
+        
+
     
 if __name__=='__main__':
     
