@@ -12,12 +12,9 @@
 MODULE BEAMFORMING_SERIAL
     !@brief module for defining serial beamforming
     USE beamforming_generic, ONLY: get_k
-    USE iso_c_bindings
     IMPLICIT NONE
 
-
     CONTAINS 
-
     SUBROUTINE get_k_vectors(frequency,positions,err_stat)
         ! @brief create a set of k vectors from cartesian positions
         ! @param[in] frequency - frequency to generate 
@@ -27,27 +24,6 @@ MODULE BEAMFORMING_SERIAL
         INTEGER, intent(out) :: err_stat
 
     END
-
-    FUNCTION fortran_mult_funct_c(test_num_a,test_num_b) BIND(C,name='fortran_mult_funct')
-
-    END
-
-
-    FUNCTION fortran_mult_funct(test_num_a,test_num_b)
-        ! @brief test python with fortran functions
-        REAL, intent(in) :: test_num_a,test_num_b
-        REAL :: fortran_mult_funct 
-        fortran_mult_funct= test_num_a*test_num_b
-        RETURN
-    END FUNCTION
-
-    SUBROUTINE fortran_array_mult_sub(arr_a,arr_b,out_arr,n)
-        ! @brief test python with fortran subroutines
-        INTEGER, intent(in) :: n
-        REAL, intent(in), DIMENSION(n) :: arr_a,arr_b
-        REAL, intent(inout), DIMENSION(n) :: out_arr 
-        out_arr = arr_a*arr_b
-    END SUBROUTINE
 
     FUNCTION get_partial_k_vector_azel(az,el)
         ! @brief create a set of partial k vector (e.g. sin(theta)*cos(phi)) to be later
@@ -75,12 +51,9 @@ MODULE BEAMFORMING_SERIAL
         REAL, intent(in), DIMENSION(:,:) :: positions
         COMPLEX, intent(out), DIMENSION(:) :: steering_vectors
         REAL,DIMENSION(3) :: pkv,k !partial k vector,k value
-        pkv = get_partial_k_vector_azel(az,el)
-        k = get_k(frequency,1.,1.) ! get our wavenumber
-        steering_vectors = exp(CMPLX(0,-1)*matmul(positions,pkv*k)) ! e^(-j*dot(k,r))
     END
 
-    COMPLEX FUNCTION get_beamformed_value(frequency,positions,weights,meas_vals,az,el)
+    COMPLEX FUNCTION get_beamformed_value_c(frequency,positions,weights,meas_vals,az,el)
         ! @brief get a beamformed value at a given freq, positions, and angles
         ! @param[in] frequency - frequency we are beamforming at
         ! @param[in] positions - Nx3 array of positions ((:,c) c=1,2,3 are x,y,z respectively
@@ -93,11 +66,6 @@ MODULE BEAMFORMING_SERIAL
         COMPLEX, intent(in), DIMENSION(:) :: weights, meas_vals
         INTEGER, DIMENSION(2) :: num_positions
         COMPLEX,ALLOCATABLE, DIMENSION(:) :: steering_vectors
-        num_positions = shape(positions)
-        allocate(steering_vectors(num_positions(1)))
-        call get_steering_vector(frequency,positions,az,el,steering_vectors)
-        get_beamformed_value = SUM(weights*meas_vals*steering_vectors)
-        RETURN
     END FUNCTION
 
 
