@@ -5,7 +5,7 @@ Created on Mon Jun 17 12:40:46 2019
 @author: ajw5
 """
 from Modulation import Modem
-from Modulation import ModulatedSignal
+from Modulation import ModulatedSignal,ModulatedPacket
 from Modulation import lowpass_filter_zero_phase,bandstop_filter
 from QAM import QAMConstellation
 import numpy as np
@@ -26,13 +26,13 @@ class OFDMModem(Modem):
             parameters passed to Modem Class
         '''
         super().__init__(baud_rate=1/subcarrier_spacing) #baud rate must be 1/carrier spacing for OFDM
-        self.options['cp_length'] = .2 #default value (fraction of symbol length
+        self['cp_length'] = .2 #default value (fraction of symbol length
         for key,val in arg_options.items():
             self.options[key] = val
         
-        self.constellation = QAMConstellation(M,**arg_options)
-        self.subcarrier_spacing = subcarrier_spacing
-        self.subcarrier_count = subcarrier_count
+        self['constellation'] = QAMConstellation(M,**arg_options)
+        self['subcarrier_spacing'] = subcarrier_spacing
+        self['subcarrier_count'] = subcarrier_count
 
         
     def modulate(self,data):
@@ -41,9 +41,7 @@ class OFDMModem(Modem):
         @return a OFDMSignal object containing the data of the signal
         '''
         #split the data across our channels
-        iq_points = self.constellation.map(data) #map data bytearray to iq constellation
-        packets = np.array(self._packetize_iq(iq_points))
-        mysig = OFDMSignal(data)
+        mysig = self._generate_ofdm_signal(data)
         mysig.packets = packets
         baseband_signal_td = np.fft.ifft(packets,axis=0)
         mysig.baseband_dict.update({'i':baseband_signal_td.real})
@@ -53,8 +51,17 @@ class OFDMModem(Modem):
         #now oversample the signal to match that of our high frequency value
         self._oversample(mysig)
         return mysig
+    
+    def generate_ofdm_signal(self,data):
+        '''
+        @brief generate OFDMSignal packetized version of the data
+        '''
+        iq_points = self.constellation.map(data) #map data bytearray to iq constellation
+        packets = np.array(self.packetize_iq(iq_points))
+        mysig = OFDMSignal(data)
+        return mysig
         
-    def _packetize_iq(self,iq_points,**kwargs):
+    def packetize_iq(self,iq_points,**kwargs):
         '''
         @brief take a set of iq points (complex numbers) and split them into packets for each time period
             The length of each packet will be equal to the number of subcarriers
@@ -77,7 +84,11 @@ class OFDMModem(Modem):
             pad = np.full((num_pad,),options['padding'])
             iq_points = np.concatenate((iq_points,pad))
         packets = np.split(iq_points,iq_points.shape[0]/self.subcarrier_count)
-        return packets
+        pack_list = []
+        subcarriers = np.arange(self.subcarrier_count)*self.subcarrier_spacing
+        for p in packets:
+            pack_list.append(OFDMPacket(p,subcarriers))
+        return pack_list
         
     def _oversample(self,ofdm_signal):
         '''
@@ -111,6 +122,13 @@ class OFDMModem(Modem):
         IQ = II+QQ;
         ofdm_signal.rf_signal = IQ
         
+    def ideal_upconvert(self,ofdm_signal):
+        '''
+        @brief ideal unconversion in frequency domain of the ofdm signal
+        @param[in] ofdm_signal -ofdm signal class with frequency domain packets
+        '''
+        pass
+        
     def downconvert(self,ofdm_signal):
         '''
         @brief downconvert a OFDM signal object with only an RF signal to i_oversampled and q_oversampled
@@ -129,8 +147,6 @@ class OFDMModem(Modem):
         
         baseband_dict = {'i':i_bb,'q':q_bb}
         return baseband_dict
-    
-    def
         
     def _add_cp(self,ofdm_signal):
         '''
@@ -141,7 +157,7 @@ class OFDMModem(Modem):
         @todo finish this
         '''
         #get the indices of our values to put in the time
-        for pack_num in range(len(ofdm_signal.packets))
+        for pack_num in range(len(ofdm_signal.packets)):
             cp_time = self.cp_length*self.baud_rate
             cp_i_vals = ofdm_signal.baseband_dict['i'][pack]
         
@@ -150,17 +166,15 @@ class OFDMSignal(ModulatedSignal):
     '''
     @brief class to hold ofdm signal data
     '''
-    def __init__(self,data=None,**arg_options):
+    def __init__(self,packet_list,**arg_options):
         '''
         @brief constructor for the class. Inherits from ModulatedSignal
         '''
-        super().__init__(data,**arg_options)
+        super().__init__(None,**arg_options)
         
-        #numpy array for frequency domain iq data
-        #this is a 2D array where axis=0 is a single packet covering all subcarriers
-        #axis 2 is time (in packets)
-        self.packets = None
-        self.baseband_times = None #times for baseband (time domain fft) signal
+        self['packets'] = packet_list
+        for k,v in arg_options.items():
+            self[k] = v
         
     def plot_packet(self,packet_number=0):
         '''
@@ -193,9 +207,6 @@ class OFDMSignal(ModulatedSignal):
             plt.plot(times,val.transpose(),label='{} Baseband'.format(key))
             all_baseband.append(val)
             
-        #plt_min = np.min(all_baseband)
-        #plt_max = np.max(all_baseband)
-        #plt.plot(self.times,self.clock*(plt_max-plt_min)+plt_min)
         ax = fig.gca()
         ax.legend()
         ax.set_xlabel('Time (s)')
@@ -209,27 +220,53 @@ class OFDMSignal(ModulatedSignal):
         plt.figure()
         plt.plot(self.times,self.rf_signal[packet_number])
         return plt.gca()
+
+class OFDMPacket(ModulatedPacket):
+    '''
+    @brief class to hold a single OFDM packet. This will be frequency domain data
+        which will represent a single OFDM frame
+    '''
+    def __init__(self,data,freqs,**kwargs):
+        '''
+        @brief constructor
+        @param[in] data - complex modulated data on each subcarrier
+        @param[in] freqs - subcarrier frequency list
+        '''
+        super().__init__(data,freqs,**kwargs)
         
 if __name__=='__main__':
     
     import copy
+    import os
     from Modulation import plot_frequency_domain
     
-    mymodem = OFDMModem(16,5,120e3,sample_frequency=50e9,carrier_frequency=1e9)
+    out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC'
+    
+    mymodem = OFDMModem(64,1666,60e3)
     data = 'testing'.encode()
+    data = np.random.rand(9996)
+    mapped = mymodem.constellation.map(data)
+    packs = mymodem.packetize_iq(mapped)
+    p = packs[0]
+    for i,p in enumerate(packs):
+        p.S[21].freq_list+=27.5e9
+        out_name = os.path.join(out_dir,'packet_{}.s1p'.format(i))
+        #print(out_name)
+        p.write(out_name)
+    p.plot_iq(mymodem['constellation'])
     #data = np.random.rand(10)
-    mysig = mymodem.modulate(data)
-    mymodem.upconvert(mysig)
+    #mysig = mymodem.modulate(data)
+    #mymodem.upconvert(mysig)
     #mysig.plot_packet()
     #mysig.plot_baseband()
     
-    insig = mysig
-    outsig = copy.deepcopy(insig)
+    #insig = mysig
+    #outsig = copy.deepcopy(insig)
     
-    mymodem.downconvert(outsig)
+   # mymodem.downconvert(outsig)
     #outsig.plot_baseband()
-    plot_frequency_domain(outsig.baseband_dict['i_oversampled'][0],outsig.times[1]-outsig.times[0])
-    outsig.plot_baseband()
+    #plot_frequency_domain(outsig.baseband_dict['i_oversampled'][0],outsig.times[1]-outsig.times[0])
+    #outsig.plot_baseband()
         
         
         
