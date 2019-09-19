@@ -18,48 +18,6 @@ MODULE BEAMFORMING_SERIAL
 
     CONTAINS 
 
-    SUBROUTINE get_k_vectors(frequency,positions,err_stat)
-        ! @brief create a set of k vectors from cartesian positions
-        ! @param[in] frequency - frequency to generate 
-        ! @param[in] positions - an Nx3 array containing the positions of each element
-        ! @param[out] err_stat - output error status
-        REAL, intent(in)     :: frequency,positions
-        INTEGER, intent(out) :: err_stat
-
-    END
-
-    !FUNCTION fortran_mult_funct_c(test_num_a,test_num_b) BIND(C,name='fortran_mult_funct')
-
-    !END
-
-
-    FUNCTION fortran_mult_funct(test_num_a,test_num_b)
-        ! @brief test python with fortran functions
-        REAL, intent(in) :: test_num_a,test_num_b
-        REAL :: fortran_mult_funct 
-        fortran_mult_funct= test_num_a*test_num_b
-        RETURN
-    END FUNCTION
-
-    SUBROUTINE fortran_array_mult_sub(arr_a,arr_b,out_arr,n)
-        ! @brief test python with fortran subroutines
-        INTEGER, intent(in) :: n
-        REAL, intent(in), DIMENSION(n) :: arr_a,arr_b
-        REAL, intent(inout), DIMENSION(n) :: out_arr 
-        out_arr = arr_a*arr_b
-    END SUBROUTINE
-
-    SUBROUTINE fortran_array_math_sub(arr_a,arr_b,out_arr,n)
-        ! @brief test python with fortran subroutines
-        INTEGER, intent(in) :: n
-        REAL, intent(in), DIMENSION(n) :: arr_a,arr_b
-        REAL, intent(inout), DIMENSION(n) :: out_arr 
-        out_arr = arr_a*arr_b
-        out_arr = arr_a+out_arr 
-        out_arr = arr_b-out_arr 
-        out_arr = out_arr*(arr_a/arr_b)
-    END SUBROUTINE
-
     FUNCTION get_k_vector_azel(freq,az,el)
         ! @brief create a set of k vectors (e.g. sin(theta)*cos(phi) - k_x,k_y,k_z) 
         !   for a given frequency will then be dotted with our position (x,y,z)
@@ -123,6 +81,37 @@ MODULE BEAMFORMING_SERIAL
             ENDDO
         ENDDO
         deallocate(steering_vectors)
+    END SUBROUTINE
+
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! FORTRAN PYTHON INTERFACING TESTS
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    FUNCTION fortran_mult_funct(test_num_a,test_num_b)
+        ! @brief test python with fortran functions
+        REAL, intent(in) :: test_num_a,test_num_b
+        REAL :: fortran_mult_funct 
+        fortran_mult_funct= test_num_a*test_num_b
+        RETURN
+    END FUNCTION
+
+    SUBROUTINE fortran_array_mult_sub(arr_a,arr_b,out_arr,n)
+        ! @brief test python with fortran subroutines
+        INTEGER, intent(in) :: n
+        REAL, intent(in), DIMENSION(n) :: arr_a,arr_b
+        REAL, intent(inout), DIMENSION(n) :: out_arr 
+        out_arr = arr_a*arr_b
+    END SUBROUTINE
+
+    SUBROUTINE fortran_array_math_sub(arr_a,arr_b,out_arr,n)
+        ! @brief test python with fortran subroutines
+        INTEGER, intent(in) :: n
+        REAL, intent(in), DIMENSION(n) :: arr_a,arr_b
+        REAL, intent(inout), DIMENSION(n) :: out_arr 
+        out_arr = arr_a*arr_b
+        out_arr = arr_a+out_arr 
+        out_arr = arr_b-out_arr 
+        out_arr = out_arr*(arr_a/arr_b)
     END SUBROUTINE
 
 END MODULE BEAMFORMING_SERIAL
