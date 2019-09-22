@@ -34,17 +34,45 @@ el = EL.flatten()
     
 print('TIMING:')
 import timeit
-print('FORTRAN: ',end='')
+num_reps = 3
+#run fortran
+print("Timing FORTRAN")
 ft = timeit.Timer(lambda: myfbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
-print(ft.timeit(number=5)/5.)
-print('NUMPY: ',end='')
+ftt = ft.timeit(number=num_reps)
+#run numpy
+print("Timing NUMPY")
 npt = timeit.Timer(lambda: mynpbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
-print(npt.timeit(number=5)/5.)
-print('NUMBA: ',end='')
+nptt = npt.timeit(number=num_reps)
+#run numba
+print("Timing NUMBA")
 nbt = timeit.Timer(lambda: mynbbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
-print(npt.timeit(number=5)/5.)
-print('PYTHON: ',end='')
-print("DISABLED")
-#pt = timeit.Timer(lambda: mypbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
-#print(pt.timeit(number=1))/1
+nbtt = nbt.timeit(number=num_reps)
+#run python
+print("Timing PYTHON")
+pt = timeit.Timer(lambda: mypbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
+#ptt = pt.timeit(number=num_reps)
+ptt = np.nan
+
+def print_statistics(run_time,num_reps,baseline_time):
+    '''
+    @brief print statistics on timing
+    @param[in] run_time - return from timeit.Timer.timeit()
+    @param[in] num_reps - number of repeats when timing
+    @param[in] baseline_time - time to compare against for speedup
+    '''
+    print("    Total Run Time: {}".format(run_time))
+    print("    Single Run Time: {}".format(run_time/float(num_reps)))
+    print("    Speedup over baseline: {}".format(baseline_time/run_time))
+
+print('STATISTICS')
+print('PYTHON: ')
+print_statistics(ptt,num_reps,nptt)
+print('NUMPY: ')
+print_statistics(nptt,num_reps,nptt)
+print('NUMBA: ')
+print_statistics(nbtt,num_reps,nptt)
+print('FORTRAN: ')
+print_statistics(ftt,num_reps,nptt)
+
+
 

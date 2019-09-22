@@ -79,8 +79,8 @@ MODULE BEAMFORMING_SERIAL
         allocate(steering_vectors(num_positions(2),size(az))) ! we need a steering vector for each xyz position triplet
         DO fn=1,SIZE(freqs)
             print*, "Running with frequency ",freqs(fn)
-            !$OMP PARALLEL DO
             call get_steering_vectors_(freqs(fn),positions,az,el,steering_vectors) !get the steering vectors
+            !$OMP PARALLEL DO
             DO an=1,size(az)
                 out_vals(an,fn) = SUM(weights*meas_vals(:,fn)*steering_vectors(:,an))/num_positions(2)
             ENDDO

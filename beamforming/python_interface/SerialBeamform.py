@@ -168,7 +168,7 @@ if __name__=='__main__':
     freqs = [40e9] #frequency
     #freqs = np.arange(26.5e9,40e9,10e6)
     spacing = 2.99e8/np.max(freqs)/2 #get our lambda/2
-    numel = [5,1,1] #number of elements in x,y
+    numel = [35,1,1] #number of elements in x,y
     Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
     pos = np.stack((Xel.flatten(),Yel.flatten(),Zel.flatten()),axis=1) #get our position [x,y,z] list
     #az = np.arange(-90,90,1)

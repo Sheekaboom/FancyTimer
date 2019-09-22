@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 project(beamforming)
 enable_language(Fortran)
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-form -std=f2008 -fimplicit-none -O3")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp -ffree-form -std=f2008 -fimplicit-none -O3")
 
 #
 # Compile.
