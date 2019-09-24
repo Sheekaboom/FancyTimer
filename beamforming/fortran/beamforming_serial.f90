@@ -30,11 +30,15 @@ MODULE BEAMFORMING_SERIAL
         REAL(DP), intent(in)                    :: az,el,freq
         REAL(DP)                                :: k
         REAL(DP),              DIMENSION(3)     :: get_k_vector_azel
+        !INTEGER :: rv
         k = get_k(freq,1D0,1D0)
+        !write(*,*) "Az : ",az,"   EL : ",el, "   K : ",k
         get_k_vector_azel(1) = sin(az)*cos(el) ! x
         get_k_vector_azel(2) = sin(el)         ! y
         get_k_vector_azel(3) = cos(az)*cos(el) ! z
+        !rv = print_matrix(get_k_vector_azel)
         get_k_vector_azel = k*get_k_vector_azel
+        !rv = print_matrix(get_k_vector_azel)
     END
 
     SUBROUTINE get_steering_vectors_(frequency,positions,az,el,steering_vectors)

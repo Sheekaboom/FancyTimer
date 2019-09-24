@@ -174,7 +174,7 @@ class PythonBeamform(SpeedBeamform):
     '''
     @brief class to build python based beamforming engines from
     '''
-    speed_of_light = 299792458.0
+    SPEED_OF_LIGHT = np.double(299792458.0)
     def __init__(self):
         '''
         @brief constructor
@@ -203,7 +203,7 @@ class PythonBeamform(SpeedBeamform):
         @brief get our wavenumber
         @note this part stays the same for all python implementations
         '''
-        lam = self.speed_of_light/np.sqrt(eps_r*mu_r)/freq
+        lam = self.SPEED_OF_LIGHT/np.sqrt(eps_r*mu_r)/freq
         k = 2*np.pi/lam
         return k    
     
@@ -214,10 +214,16 @@ class PythonBeamform(SpeedBeamform):
         @note this alsow is the same for all pytho implementations
         '''
         k = self._get_k(freq,1.,1.)
+        print(az,el)
         kvec = k*np.array([
                 np.sin(az)*np.cos(el),
                 np.sin(el),
                 np.cos(az)*np.cos(el)]).transpose()
+        print(np.array([
+                np.sin(az)*np.cos(el),
+                np.sin(el),
+                np.cos(az)*np.cos(el)]).transpose())
+        print(kvec)
         return kvec
     
     def _get_arg_ctypes(self,*args):

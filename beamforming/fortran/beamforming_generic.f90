@@ -8,9 +8,9 @@
 MODULE BEAMFORMING_GENERIC
     IMPLICIT NONE
     !define some constants here
-    REAL, PARAMETER :: SPEED_OF_LIGHT = 299792458.0 !speed of light in vacuum
-    REAL, PARAMETER :: PI = 3.141592654
     INTEGER, PARAMETER :: DP = 8
+    REAL(DP), PARAMETER :: SPEED_OF_LIGHT = 299792458.0D0 !speed of light in vacuum
+    REAL(DP), PARAMETER :: PI = 3.141592653589793D0
     
     Contains
         REAL(DP) FUNCTION get_k(frequency,eps_r,mu_r)
@@ -38,6 +38,7 @@ MODULE BEAMFORMING_GENERIC
             REAL(DP), intent(in) :: eps_r, mu_r
             !check if eps_r and mu_r are provided
             get_lambda = SPEED_OF_LIGHT/sqrt(eps_r*mu_r)/frequency
+            write(*,*) "FSOL: ",SPEED_OF_LIGHT
             RETURN
         END
 

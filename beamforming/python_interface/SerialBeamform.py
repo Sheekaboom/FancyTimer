@@ -158,7 +158,14 @@ class SerialBeamformNumba(PythonBeamform):
     
 
 if __name__=='__main__':
+    from collections import OrderedDict
     n = 2
+    beamformer_classes = OrderedDict()
+    beamformer_classes['NUMPY']    = SerialBeamformNumpy
+    beamformer_classes['NUMBA']    = SerialBeamformNumba
+    beamformer_classes['FORTRAN']  = SerialBeamformFortran
+    beamformer_classes['Python']   = SerialBeamformPython
+    beamformers = {k:v() for k,v in beamformer_classes.items()}
     myfbf = SerialBeamformFortran()
     mypbf = SerialBeamformPython()
     mynpbf = SerialBeamformNumpy()
@@ -176,14 +183,21 @@ if __name__=='__main__':
     az = [-45]
     el = np.zeros_like(az)
     sv = myfbf.get_steering_vectors(freqs[0],pos,az,el)
-    psv = mypbf.get_steering_vectors(freqs[0],pos,az,el)
+    #psv = mypbf.get_steering_vectors(freqs[0],pos,az,el)
     npsv = mynpbf.get_steering_vectors(freqs[0],pos,az,el)
+    #print(mynpbf._get_k(freqs[0]))
+    #print(mynpbf.SPEED_OF_LIGHT)
+    #print(mynpbf._get_k_vector_azel(freqs[0],az,el))
+    np.set_printoptions(precision=16,floatmode='fixed')
     nbsv = mynbbf.get_steering_vectors(freqs[0],pos,az,el)
-    print("STEERING VECTOR EQUALITY CHECK (4 decimal places):")
-    rdp = 2
-    print(np.all(np.round(sv,rdp)==np.round(psv,rdp)))
-    print(np.all(np.round(npsv,rdp)==np.round(psv,rdp)))
-    print(np.all(np.round(nbsv,rdp)==np.round(psv,rdp)))
+    print("STEERING VECTOR EQUALITY CHECK:")
+    base_sv = beamformers['NUMPY'].get_steering_vectors(freqs[0],pos,az,el) #our base values to compare to
+    num_dec = 14 #number of decimal places to round to (slight machine error between fortran and numpy)
+    for k,v in beamformers.items():
+        cur_sv = v.get_steering_vectors(freqs[0],pos,az,el)
+        sv_eq = np.round(cur_sv,num_dec)==np.round(base_sv,num_dec)
+        print("{}: {}".format(k,np.all(sv_eq)))
+    
     meas_vals = np.tile(sv[0],(len(freqs),1)) #syntethic plane wave
     #meas_vals = np.ones((1,35))
     #print(np.rad2deg(np.angle(sv)))
@@ -199,14 +213,16 @@ if __name__=='__main__':
     az = azl
     el = np.zeros_like(az)
     weights = np.ones((pos.shape[0]),dtype=np.complex128)
+    '''
     bf_vals = myfbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
     pbf_vals = mypbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
     npbf_vals = mynpbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
     nbbf_vals = mynbbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
+    '''
     #print(bf_vals)
     #print(get_k_vec(freq,az,el))
         
-        
+    '''
     import matplotlib.pyplot as plt
     freq_to_plot = 0
     plt.plot(az,10*np.log10(np.abs(bf_vals[freq_to_plot])),label='FORTRAN')
@@ -214,6 +230,7 @@ if __name__=='__main__':
     plt.plot(az,10*np.log10(np.abs(npbf_vals[freq_to_plot])),label='Numpy')
     plt.plot(az,10*np.log10(np.abs(nbbf_vals[freq_to_plot])),label='Numba')
     plt.legend()
+    '''
     
     '''
     #test array multiply
