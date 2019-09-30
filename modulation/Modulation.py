@@ -283,16 +283,26 @@ class ModulatedPacket(SnpEditor):
     @brief a class to save a single modulated packet. This could store time or frequency domain data but inherits from SnpEditor
         Which is technically frequency domain. To do time, simply treat the frequencies as times.
     '''
-    def __init__(self,packet_data,time_freq,**kwargs):
+    def __new__(cls,*args,**kwargs):
+        '''
+        @brief override the checking of snp/wnp names
+        '''
+        return super().__new__(cls,*args,override_extension_check=True,**kwargs)
+        
+    def __init__(self,input_file=None,**kwargs):
         '''
         @brief constructor class for a packet
-        @param[in] packet_data - iq packet data thats in the packet
-        @param[in] time_freq - frequency or time ('x' axis) for packet_data
+        @param[in] input_file - touchstone file to load in as packet
+            A new packet can be created by passing a list of [[data_list],[freq_list]]
         @param[in/OPT] kwargs - keywrod arguments passed to SnpEditor init 
         '''
-        super().__init__([1,time_freq],**kwargs) #init empty value
-        self.options['header'] = DEFAULT_SNP_HEADER
-        self.v1.raw = packet_data #set the packet data
+        if isinstance(input_file,list): #check if its a list
+            time_freq = input_file[1]; packet_data = input_file[0]
+            super().__init__([1,time_freq],**kwargs) #init empty value
+            self.options['header'] = DEFAULT_SNP_HEADER
+            self.v1.raw = packet_data #set the packet data
+        else: #otherwise its a string or none so just pass to super().__init__
+            super().__init__(input_file,**kwargs)
         
     def _gen_dict_keys(self):
         return [21]
@@ -309,7 +319,20 @@ class ModulatedPacket(SnpEditor):
         q = self.v1.raw.imag
         plt.plot(i,q)
         
+    @property
+    def data(self):
+        '''
+        @brief return the complex data because there is only 1 element
+        '''
+        return self.v1.raw
         
+    @data.setter
+    def data(self,vals):
+        '''
+        @brief setter for complex data
+        '''
+        self.v1.raw = vals
+    
 
     
 if __name__=='__main__':

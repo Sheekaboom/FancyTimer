@@ -4,10 +4,10 @@ Created on Mon Jun 17 12:40:46 2019
 
 @author: ajw5
 """
-from Modulation import Modem
-from Modulation import ModulatedSignal,ModulatedPacket
-from Modulation import lowpass_filter_zero_phase,bandstop_filter
-from QAM import QAMConstellation
+from pycom.modulation.Modulation import Modem
+from pycom.modulation.Modulation import ModulatedSignal,ModulatedPacket
+from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
+from pycom.modulation.QAM import QAMConstellation
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -69,7 +69,7 @@ class OFDMModem(Modem):
         @param[in] iq_points - list of iq points to split up
         @param[in] kwargs - keyword args as follows
             padding - complex number to pad unused channels with (when required)
-        @return list of numpy arrays with each of the channel values
+        @return list of numpy arrays with each of the channel values, padded iq_points
         '''
         options = {}
         options['padding'] = complex(0,0)
@@ -87,8 +87,18 @@ class OFDMModem(Modem):
         pack_list = []
         subcarriers = np.arange(self.subcarrier_count)*self.subcarrier_spacing
         for p in packets:
-            pack_list.append(OFDMPacket(p,subcarriers))
-        return pack_list
+            pack_list.append(OFDMPacket([p,subcarriers]))
+        return pack_list,iq_points
+    
+    def depacketize_iq(self,pack_list,**kwargs):
+        '''
+        @brief take a set of packets and change to a set of iq points
+        @param[in] pack_list - list of Modulated packets to depacketize
+        '''
+        iq_points = np.array([])
+        for p in pack_list:
+            iq_points = np.concatenate((iq_points,p.data))
+        return iq_points
         
     def _oversample(self,ofdm_signal):
         '''
@@ -125,7 +135,7 @@ class OFDMModem(Modem):
     def ideal_upconvert(self,ofdm_signal):
         '''
         @brief ideal unconversion in frequency domain of the ofdm signal
-        @param[in] ofdm_signal -ofdm signal class with frequency domain packets
+        @param[in] ofdm_packets - ofdm signal class with frequency domain packets
         '''
         pass
         
@@ -226,34 +236,88 @@ class OFDMPacket(ModulatedPacket):
     @brief class to hold a single OFDM packet. This will be frequency domain data
         which will represent a single OFDM frame
     '''
-    def __init__(self,data,freqs,**kwargs):
+    def __init__(self,input_file=None,**kwargs):
         '''
         @brief constructor
-        @param[in] data - complex modulated data on each subcarrier
-        @param[in] freqs - subcarrier frequency list
+        @param[in] input file - [[packet_data],[freq/time_list]] or string of path to touchstone file
         '''
-        super().__init__(data,freqs,**kwargs)
+        super().__init__(input_file,**kwargs)
+    
+    @property
+    def subcarriers(self):
+        '''
+        @brief simply another name for freq_list. This packet should only have subcarriers though
+        '''
+        return self.freq_list
         
 if __name__=='__main__':
     
     import copy
     import os
     from Modulation import plot_frequency_domain
+    import unittest
     
-    out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC'
+    class OFDMTest(unittest.TestCase):
+        
+        def test_packetize(self):
+            '''
+            @brief test OFDMModem.packetize_iq and OFDMModem.depacketize_iq symmetric property
+            '''
+            mymodem = OFDMModem(64,1666,60e3)
+            data = np.random.rand(9996)
+            mapped = mymodem.constellation.map(data)
+            packs,mapped_in = mymodem.packetize_iq(mapped)
+            mapped_out = mymodem.depacketize_iq(packs)
+            self.assertTrue(np.all(mapped_in==mapped_out))
+        
+        def test_encode(self):
+            '''
+            @brief full test for the following
+                raw_data->QAM mapping->packetization->depacktization->qam demapping->raw_data
+            '''
+            mymodem = OFDMModem(64,1666,60e3)
+            data = np.random.rand(9996)
+            data_in=data
+            mapped = mymodem.constellation.map(data)
+            packs,_ = mymodem.packetize_iq(mapped)
+            from samurai.base.TouchstoneEditor import SnpParam
+            channel = SnpParam(packs[0].freq_list,np.ones(packs[0].freq_list.shape))
+            packs_out = [pack*channel for pack in packs]
+            mapped_out = mymodem.depacketize_iq(packs_out)
+            data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
+            self.assertTrue(np.all(data_in==data_out))
+            
+    suite = unittest.TestLoader().loadTestsFromTestCase(OFDMTest)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    #unittest.main()
+    
+    out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC_27p5GHz'
     
     mymodem = OFDMModem(64,1666,60e3)
+    #mymodem = OFDMModem(256,7,60e3)
     data = 'testing'.encode()
+    np.random.seed(1234) #reset seed for testing    
     data = np.random.rand(9996)
     mapped = mymodem.constellation.map(data)
-    packs = mymodem.packetize_iq(mapped)
+    packs,mapped_in = mymodem.packetize_iq(mapped)
+    
     p = packs[0]
     for i,p in enumerate(packs):
         p.S[21].freq_list+=27.5e9
         out_name = os.path.join(out_dir,'packet_{}.s1p'.format(i))
         #print(out_name)
-        p.write(out_name)
-    p.plot_iq(mymodem['constellation'])
+        #p.write(out_name)
+    #p.plot_iq(mymodem['constellation'])
+    packs_out = []
+    for p in packs:
+        p.data+=complex(1,0)
+        packs_out.append(p)
+        
+    Schannel = 1 #set to an SnpParam
+    
+    mapped_out = mymodem.depacketize_iq(packs_out)
+    #data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
+    data_out,err = mymodem.constellation.unmap(mapped_out,dtype=np.ubyte)
     #data = np.random.rand(10)
     #mysig = mymodem.modulate(data)
     #mymodem.upconvert(mysig)
