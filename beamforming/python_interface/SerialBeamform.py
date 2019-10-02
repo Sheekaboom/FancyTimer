@@ -47,7 +47,7 @@ class SerialBeamformPython(PythonBeamform):
         @note a class is defined here to set values of self._lib
         '''
         super().__init__()
-        #define
+        #define 
 
     def _get_steering_vectors(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
         '''
@@ -158,80 +158,84 @@ class SerialBeamformNumba(PythonBeamform):
     
 
 if __name__=='__main__':
+    from pycom.beamforming.python_interface.SpeedBeamform import SpeedBeamformUnittest
+    import unittest
+    
+    class NumpyUnittest(SpeedBeamformUnittest,unittest.TestCase):
+        def set_beamforming_class(self):
+            self.beamforming_class = SerialBeamformNumpy()
+            
+    class NumbaUnittest(SpeedBeamformUnittest,unittest.TestCase):
+        def set_beamforming_class(self):
+            self.beamforming_class = SerialBeamformNumba()
+    
+    class FortranUnittest(SpeedBeamformUnittest,unittest.TestCase):
+        def set_beamforming_class(self):
+            self.beamforming_class = SerialBeamformFortran()
+    
+    test_class_list = [NumpyUnittest,NumbaUnittest,FortranUnittest]
+    tl = unittest.TestLoader()
+    suite = unittest.TestSuite([tl.loadTestsFromTestCase(mycls) for mycls in test_class_list])
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    
+    
     from collections import OrderedDict
     n = 2
     beamformer_classes = OrderedDict()
     beamformer_classes['NUMPY']    = SerialBeamformNumpy
     beamformer_classes['NUMBA']    = SerialBeamformNumba
     beamformer_classes['FORTRAN']  = SerialBeamformFortran
-    beamformer_classes['Python']   = SerialBeamformPython
+    #beamformer_classes['Python']   = SerialBeamformPython
     beamformers = {k:v() for k,v in beamformer_classes.items()}
-    myfbf = SerialBeamformFortran()
-    mypbf = SerialBeamformPython()
-    mynpbf = SerialBeamformNumpy()
-    mynbbf = SerialBeamformNumba()
     
+    bf_base = 'NUMPY' #class to compare everything against
+
     #test get steering vectors
     freqs = [40e9] #frequency
     #freqs = np.arange(26.5e9,40e9,10e6)
     spacing = 2.99e8/np.max(freqs)/2 #get our lambda/2
-    numel = [35,1,1] #number of elements in x,y
+    numel = [35,35,1] #number of elements in x,y
     Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
     pos = np.stack((Xel.flatten(),Yel.flatten(),Zel.flatten()),axis=1) #get our position [x,y,z] list
-    #az = np.arange(-90,90,1)
-    #az = np.array([-90,45,0,45 ,90])
-    az = [-45]
-    el = np.zeros_like(az)
-    sv = myfbf.get_steering_vectors(freqs[0],pos,az,el)
-    #psv = mypbf.get_steering_vectors(freqs[0],pos,az,el)
-    npsv = mynpbf.get_steering_vectors(freqs[0],pos,az,el)
-    #print(mynpbf._get_k(freqs[0]))
-    #print(mynpbf.SPEED_OF_LIGHT)
-    #print(mynpbf._get_k_vector_azel(freqs[0],az,el))
+    az = np.arange(-90,90,1)
+    el = np.arange(-90,90,1)
     np.set_printoptions(precision=16,floatmode='fixed')
-    nbsv = mynbbf.get_steering_vectors(freqs[0],pos,az,el)
     print("STEERING VECTOR EQUALITY CHECK:")
-    base_sv = beamformers['NUMPY'].get_steering_vectors(freqs[0],pos,az,el) #our base values to compare to
-    num_dec = 14 #number of decimal places to round to (slight machine error between fortran and numpy)
+    base_sv = beamformers[bf_base].get_steering_vectors(freqs[0],pos,az,el) #our base values to compare to
+    rel_err = 1e-12 #relative error allowed between elements (to account for machine error between python/c/fortran)
     for k,v in beamformers.items():
         cur_sv = v.get_steering_vectors(freqs[0],pos,az,el)
-        sv_eq = np.round(cur_sv,num_dec)==np.round(base_sv,num_dec)
+        sv_eq = np.isclose(base_sv,cur_sv,rtol=rel_err,atol=0)
         print("{}: {}".format(k,np.all(sv_eq)))
+        if not np.all(sv_eq): #print the offenders and the difference
+            sv_neq = np.invert(sv_eq) #where they arent equal
+            err = ((base_sv[sv_neq]-cur_sv[sv_neq])/base_sv[sv_neq])
+            _,neq_idx = np.where(sv_neq) #how many places they arent equal
+            print("    # Not Equal Elements:   {}".format(len(neq_idx)))
+            print("    Max Error           :   {}".format(np.abs(np.max(err))))
+            print("    Max Error Element   :   {}".format(np.argmax(err)))
+            bnsv = base_sv[sv_neq]
+            cnsv = cur_sv[sv_neq]
     
-    meas_vals = np.tile(sv[0],(len(freqs),1)) #syntethic plane wave
-    #meas_vals = np.ones((1,35))
-    #print(np.rad2deg(np.angle(sv)))
-    #print(sv)
-    #print(np.real(sv))
-    azl = np.arange(-90,90,1)
-    ell = np.arange(-90,90,1)
-    AZ,EL = np.meshgrid(azl,ell)
-    az2 = AZ.flatten()
-    el2 = EL.flatten()
-    #az = np.array([-90,45,0,45,90])
-    #az = [-90]
-    az = azl
-    el = np.zeros_like(az)
+    #create synthetic incident plane wave data
+    inc_az = [0,45]; inc_el = [0,20]#np.zeros_like(inc_az)
+    meas_vals = np.array([beamformers[bf_base].get_steering_vectors(freq,pos,inc_az,inc_el) for freq in freqs])
+    meas_vals = meas_vals.mean(axis=1)
+
     weights = np.ones((pos.shape[0]),dtype=np.complex128)
+    bf_vals = OrderedDict()
+    for k,v in beamformers.items():
+        vals = v.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
+        bf_vals[k] = vals
     '''
-    bf_vals = myfbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
-    pbf_vals = mypbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
-    npbf_vals = mynpbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
-    nbbf_vals = mynbbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
-    '''
-    #print(bf_vals)
-    #print(get_k_vec(freq,az,el))
-        
-    '''
+    #and plot
     import matplotlib.pyplot as plt
     freq_to_plot = 0
-    plt.plot(az,10*np.log10(np.abs(bf_vals[freq_to_plot])),label='FORTRAN')
-    plt.plot(az,10*np.log10(np.abs(pbf_vals[freq_to_plot])),label='Python')
-    plt.plot(az,10*np.log10(np.abs(npbf_vals[freq_to_plot])),label='Numpy')
-    plt.plot(az,10*np.log10(np.abs(nbbf_vals[freq_to_plot])),label='Numba')
+    for k,v in bf_vals.items():
+        plt_vals = 10*np.log10(np.abs(v[freq_to_plot]))
+        plt.plot(az,plt_vals,label=k)
     plt.legend()
     '''
-    
     '''
     #test array multiply
     arr1 = (np.random.rand(n)+1j*np.random.rand(n)).astype(np.csingle)

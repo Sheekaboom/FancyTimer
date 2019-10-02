@@ -38,7 +38,6 @@ MODULE BEAMFORMING_GENERIC
             REAL(DP), intent(in) :: eps_r, mu_r
             !check if eps_r and mu_r are provided
             get_lambda = SPEED_OF_LIGHT/sqrt(eps_r*mu_r)/frequency
-            write(*,*) "FSOL: ",SPEED_OF_LIGHT
             RETURN
         END
 

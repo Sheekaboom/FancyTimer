@@ -56,6 +56,7 @@ class SpeedBeamform:
         arg_list = [freq,positions,az,el,steering_vecs,num_pos,num_azel]
         type_list = ['floating','floating','floating','floating','complexfloating','integer','integer']
         self._check_dict_types(arg_list,type_list)
+        check_ndims(arg_list,[0,2,1,1,2,0,0])
         iargs = tuple([freq,positions,az,el,steering_vecs,num_pos,num_azel])
         #this doesnt...
         #iargs = self._set_arg_types(freq,positions,az,el,steering_vecs,positions.shape[0],az.shape[0])
@@ -94,6 +95,8 @@ class SpeedBeamform:
         type_list = ['floating','floating','complexfloating','complexfloating','floating',
                      'floating','complexfloating','integer','integer','integer']
         self._check_dict_types(arg_list,type_list)
+        check_ndims(arg_list,[1,2,1,2,1,1,2,0,0,0])
+        #this works...
         iargs = tuple([freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel])
         #this doesnt...
         #iargs = self._set_arg_types(freq,positions,az,el,steering_vecs,num_pos,num_azel)
@@ -123,7 +126,7 @@ class SpeedBeamform:
                     type_found=1
                     break
             if not type_found: #if the type was not found, raise an exception
-                raise TypeError('{} not found as subtype of self.precision_types'.arg.dtype)
+                raise TypeError('{} not found as subtype of self.precision_types'.format(arg.dtype))
         return tuple(out_args)
                 
     def _get_arg_ctypes(self,*args):
@@ -202,6 +205,9 @@ class PythonBeamform(SpeedBeamform):
         '''
         @brief get our wavenumber
         @note this part stays the same for all python implementations
+        @examples
+        >>> myPythonBeamform._get_k(40e9)
+        838.3380087806727
         '''
         lam = self.SPEED_OF_LIGHT/np.sqrt(eps_r*mu_r)/freq
         k = 2*np.pi/lam
@@ -212,18 +218,26 @@ class PythonBeamform(SpeedBeamform):
         @brief get our k vectors (e.g. kv_x = k*sin(az)*cos(el))
         @note azel here are in radians
         @note this alsow is the same for all pytho implementations
+        @example
+        >>> myPythonBeamform._get_k_vector_azel(40e9,[-45,20,0],[45,0,3])
+        array([[-374.7356914097283038,  713.3447664223891707,
+                 231.3504328238943799],
+               [ 765.3567036207713272,    0.0000000000000000,
+                 342.1107031197503829],
+               [  -0.0000000000000000,  118.3062665560215549,
+                -829.9483383078243151]])
         '''
         k = self._get_k(freq,1.,1.)
-        print(az,el)
+        #print(az,el)
         kvec = k*np.array([
                 np.sin(az)*np.cos(el),
                 np.sin(el),
                 np.cos(az)*np.cos(el)]).transpose()
-        print(np.array([
-                np.sin(az)*np.cos(el),
-                np.sin(el),
-                np.cos(az)*np.cos(el)]).transpose())
-        print(kvec)
+        #print(np.array([
+        #        np.sin(az)*np.cos(el),
+        #        np.sin(el),
+        #        np.cos(az)*np.cos(el)]).transpose())
+        #print(kvec)
         return kvec
     
     def _get_arg_ctypes(self,*args):
@@ -241,7 +255,6 @@ class PythonBeamform(SpeedBeamform):
             get_steering_vectors = self._get_steering_vectors
             get_beamformed_values = self._get_beamformed_values
         return lib_class
-    
 
 ############################################
 ### Some ctypes useful functions
@@ -260,6 +273,17 @@ def check_types(arg_list,supertype_list):
             raise TypeError('Argument {} is not a {}'.format(i,np.ndarray))
         if not stf:
             raise TypeError('Argument {} has dtype {} not {}'.format(i,arg.dtype,supertype_list[i]))
+            
+def check_ndims(arg_list,ndim_list):
+    '''
+    @brief check that all of the arguments are of the correct number of dimensions
+        Have had issues in the past with numpy broadcasting and this causing issues
+    @param[in] arg_list - list of arguments that are being passed
+    @param[in] ndim_list - iterable of integers for the ndims each arg should have
+    '''
+    for i,arg in enumerate(arg_list):
+        if ndim_list[i]!=np.ndim(arg):
+            raise TypeError('Argument {} has {} dimensions and should have {}'.format(i,np.ndim(arg),ndim_list[i]))
             
 def load_ctypes_lib(lib_path,**kwargs):
     '''
@@ -284,12 +308,162 @@ def get_ctypes_pointers(*args,**kwargs):
 ########################################
 ### testing
 ########################################
+import os
+
+class SpeedBeamformUnittest:
+    '''
+    @brief unittest for each of our beamform types
+        This will utilize precalculated values to test for steering vectors
+        and for beamforming output values
+    '''
+    test_data_dir = './test_data'
+    test_sv_vals_name = 'unittest_steering_vectors.txt'
+    test_bf_vals_name = 'unittest_beamformed_values.txt'
+    test_meas_vals_name = 'unittest_meas_vals.txt'
+
     
-
-
-
-
+    def __init__(self,*args,**kwargs):
+        '''
+        @brief instantiate a beamforming class to test
+        '''
+        super().__init__(*args,**kwargs)
+        self.allowed_error = 1e-10
+        self.set_beamforming_class()
+        
+    def set_beamforming_class(self):
+        '''
+        @brief override this to set the correct beamforming class.
+            This should also instantiate the class
+        '''
+        self.beamforming_class = SpeedBeamform()
+        raise NotImplementedError("Please implement to set self.beamforming_class")
+        
+    def get_positions(self):
+        '''
+        @brief return testing positions
+        '''
+        numel = [35,35,1] #number of elements in x,y
+        spacing = 2.99e8/np.max(self.get_frequency())/2 #get our lambda/2
+        Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
+        pos = np.stack((Xel.flatten(),Yel.flatten(),Zel.flatten()),axis=1) #get our position [x,y,z] list
+        return pos
     
+    def get_frequency(self):
+        '''
+        @brief return the testing frequency
+        '''
+        freq = 40e9
+        return freq
+    
+    def get_angles(self):
+        '''
+        @brief get angles to test for 
+        @return az,el
+        '''
+        az = np.arange(-90,90,1)
+        el = np.arange(-90,90,1)
+        return az,el
+        
+    def get_weights(self):
+        '''
+        @brief return our weights
+        '''
+        pos = self.get_positions()
+        return np.ones((pos.shape[0]),dtype=np.cdouble)
+    
+    def check_steering_vectors(self,sv_vals):
+        '''
+        @brief return boolean to see whether our steering vectors are correct
+        @note these values were calculated using numpy on 10-2-2019 for a 
+            35x35 array at 40GHz for the angles 
+            az = np.arange(-90,91,1),el=np.arange(-90,91,1).
+        '''
+        correct_values = self.load_test_data(SpeedBeamformUnittest.test_sv_vals_name)
+        close,error = self._check_is_close(sv_vals,correct_values)
+        return np.all(close),np.max(error)
+        
+    def test_steering_vectors(self):
+        '''
+        @brief test a subset of steering vectors with a known output
+        '''
+        az,el = self.get_angles()
+        sv = self.beamforming_class.get_steering_vectors(self.get_frequency(),self.get_positions(),az,el)
+        rv,max_err = self.check_steering_vectors(sv) 
+        self.assertTrue(rv,msg='Max Error = {}'.format(max_err))
+        
+    def check_beamformed_values(self,bf_vals):
+        '''
+        @brief return boolean to see whether our steering vectors are correct
+        @note these values were calculated using numpy on 10-2-2019 for a 
+            35x35 array at 40GHz for the angles 
+        '''
+        correct_values = self.load_test_data(SpeedBeamformUnittest.test_bf_vals_name)
+        self.plot_beamformed_vals(bf_vals)
+        close,error = self._check_is_close(bf_vals,correct_values)
+        return np.all(close),np.max(error)
+    
+    def _check_is_close(self,test_vals,ref_vals):
+        '''
+        @brief check whether values are within self.allowed_error of eachother (relative error)
+        @note this also will return the relative error
+        @param[in] test_vals - what vals to test closeness of
+        @param[in] ref_vals - ref vals to test closeness to (used for relative calculation)
+        @return bool array of isclose, and the array of the error between the two
+        '''
+        tf = np.isclose(test_vals,ref_vals,rtol=self.allowed_error,atol=0)
+        err = np.abs(test_vals-ref_vals)/np.abs(ref_vals)
+        return tf,err
+    
+    def plot_beamformed_vals(self,bf_vals):
+        import matplotlib.pyplot as plt
+        az,el = self.get_angles()
+        bf_data = 10*np.log10(np.abs(bf_vals[0]))
+        plt.plot(az,bf_data,label='Unittest Beamformed')
+        baseline = 10*np.log10(np.abs(self.load_test_data(SpeedBeamformUnittest.test_bf_vals_name)))
+        plt.plot(az,baseline,label='Unittest Baseline')
+    
+    def test_beamformed_values(self):
+        '''
+        @brief test a subset of steering vectors with a known output
+        '''
+        bf_vals = self.get_beamformed_values()
+        rv,max_err = self.check_beamformed_values(bf_vals)
+        self.assertTrue(rv,msg='Max Error = {}'.format(max_err))
+        
+    def get_beamformed_values(self):
+        '''
+        @brief makes for easier getting of the outputs
+        '''
+        az,el = self.get_angles()
+        freqs = [self.get_frequency()]
+        pos = self.get_positions()
+        weights = self.get_weights()
+        meas_vals = self.load_test_data(SpeedBeamformUnittest.test_meas_vals_name)
+        meas_vals = meas_vals.reshape((1,-1)) # this value is squeezed so we have to unsqeeze else its treated as a scalar in beamforming
+        return self.beamforming_class.get_beamformed_values(freqs,pos,weights,meas_vals,az,el)
+    
+    def load_test_data(self,fname):
+        '''
+        @brief method to load all of our test data to compare against
+        @note this uses self.test_data_dir for directory of fname. this also 
+            assumes complex 128 data read and write
+        '''
+        return np.loadtxt(os.path.join(self.test_data_dir,fname),
+                          dtype=np.cdouble,comments='#')
+    
+    ########## constants for correct values #################
+    # it may be best to just load thest from a file in the future...
+    '''
+    @note these values were calculated using numpy on 10-1-2019 for a 
+            35x35 array at 40GHz for the angles 
+            az = np.arange(-90,91,10),el=np.zeros_like(az).
+            beamformed_meas_vals created with plane wave at [0,0] and [45,20] ([az,el])
+    @todo put into a file and load from there
+    '''
+    
+if __name__=='__main__':
+    import doctest
+    doctest.testmod(globs={'myPythonBeamform':PythonBeamform()})
     
     
     
