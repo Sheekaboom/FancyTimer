@@ -1,0 +1,14 @@
+function [outputArg1,outputArg2] = get_k_vector_azel(inputArg1,inputArg2)
+%GET_K_VECTOR_AZEL Summary of this function goes here
+%   Detailed explanation goes here
+outputArg1 = inputArg1;
+outputArg2 = inputArg2;
+end
+
+%% Test code
+%{
+
+out=[374.7356914097283038,...
+ 713.3447664223891707,...
+       231.3504328238943799];
+

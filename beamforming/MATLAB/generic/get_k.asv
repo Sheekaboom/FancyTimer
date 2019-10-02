@@ -1,0 +1,9 @@
+function [outputArg1,outputArg2] = get_k(inputArg1,inputArg2)
+%@brief get our wavenumber
+%@param[in] freq - frequency to calculate at
+%@param[in] eps_r - relative permittivity
+%@
+outputArg1 = inputArg1;
+outputArg2 = inputArg2;
+end
+
