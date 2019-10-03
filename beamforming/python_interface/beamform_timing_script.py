@@ -8,15 +8,15 @@ Beamform timing script
 import timeit
 import numpy as np
 from SerialBeamform import SerialBeamformFortran,SerialBeamformNumpy,SerialBeamformNumba,SerialBeamformPython
-from MatlabBeamform import SerialMatlabBeamform
+from MatlabBeamform import SerialBeamformMatlab
 n = 2
 myfbf = SerialBeamformFortran()
 mypbf = SerialBeamformPython()
 mynpbf = SerialBeamformNumpy()
 mynbbf = SerialBeamformNumba()
-mymbf = SerialMatlabBeamform()
+mymbf = SerialBeamformMatlab()
 freqs = [40e9] #frequency
-freqs = np.arange(26.5e9,30.1e9,0.5e9)
+#freqs = np.arange(26.5e9,30.1e9,0.5e9)
 spacing = 2.99e8/np.max(freqs)/2 #get our lambda/2
 numel = [35,35,1] #number of elements in x,y
 Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
