@@ -8,12 +8,15 @@ Beamform timing script
 import timeit
 import numpy as np
 from SerialBeamform import SerialBeamformFortran,SerialBeamformNumpy,SerialBeamformNumba,SerialBeamformPython
+from MatlabBeamform import SerialMatlabBeamform
 n = 2
 myfbf = SerialBeamformFortran()
 mypbf = SerialBeamformPython()
 mynpbf = SerialBeamformNumpy()
 mynbbf = SerialBeamformNumba()
+mymbf = SerialMatlabBeamform()
 freqs = [40e9] #frequency
+freqs = np.arange(26.5e9,30.1e9,0.5e9)
 spacing = 2.99e8/np.max(freqs)/2 #get our lambda/2
 numel = [35,35,1] #number of elements in x,y
 Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
@@ -47,11 +50,17 @@ nptt = npt.timeit(number=num_reps)
 print("Timing NUMBA")
 nbt = timeit.Timer(lambda: mynbbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
 nbtt = nbt.timeit(number=num_reps)
+#run Matlab
+print("Timing MATLAB")
+mbt = timeit.Timer(lambda: mymbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
+mbtt = nbt.timeit(number=num_reps)
 #run python
+'''
 print("Timing PYTHON")
 pt = timeit.Timer(lambda: mypbf.get_beamformed_values(freqs,pos,weights,meas_vals,az,el))
 #ptt = pt.timeit(number=num_reps)
 ptt = np.nan
+'''
 
 def print_statistics(run_time,num_reps,baseline_time):
     '''
@@ -65,12 +74,14 @@ def print_statistics(run_time,num_reps,baseline_time):
     print("    Speedup over baseline: {}".format(baseline_time/run_time))
 
 print('STATISTICS')
-print('PYTHON: ')
-print_statistics(ptt,num_reps,nptt)
+#print('PYTHON: ')
+#print_statistics(ptt,num_reps,nptt)
 print('NUMPY: ')
 print_statistics(nptt,num_reps,nptt)
 print('NUMBA: ')
 print_statistics(nbtt,num_reps,nptt)
+print('MATLAB: ')
+print_statistics(mbtt,num_reps,nptt)
 print('FORTRAN: ')
 print_statistics(ftt,num_reps,nptt)
 

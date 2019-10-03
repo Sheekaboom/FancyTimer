@@ -53,7 +53,7 @@ class MatlabBeamform(PythonBeamform):
 #######################################################
 # parent class for MATLAB based beamforming engines
 #######################################################
-class MatlabSerialBeamform(MatlabBeamform):
+class SerialMatlabBeamform(MatlabBeamform):
     '''
     @brief serial matlab beamforming class
     '''
@@ -90,7 +90,7 @@ if __name__=='__main__':
     
     class MatlabSerialUnittest(SpeedBeamformUnittest,unittest.TestCase):
         def set_beamforming_class(self):
-            self.beamforming_class = MatlabSerialBeamform()
+            self.beamforming_class = SerialMatlabBeamform()
     
        
     test_class_list = [MatlabSerialUnittest]

@@ -132,7 +132,7 @@ class SerialBeamformNumba(PythonBeamform):
         kvec = self._get_k_vector_azel(freq,az,el)
         for an in range(num_azel):
             steering_vecs_out[an,:] = self.vector_exp_complex(np.sum(self.vector_mult_complex(positions,kvec[an]),axis=-1))
-                
+    
     def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
         '''
         @brief override to utilize for a python engine

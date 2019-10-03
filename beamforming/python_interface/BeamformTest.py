@@ -79,23 +79,33 @@ class BeamformTest(OrderedDict): #extending ordereddict nicely allows us to prin
         '''
         np.set_printoptions(precision=16,floatmode='fixed')
         print("STEERING VECTOR EQUALITY CHECK:")
-        base_sv = self._beamformers[self['baseline_key']].get_steering_vectors(
-                                self['frequencies'][0],self['positions'],self['az'],self['el']) #our base values to compare to
+        self._test_equality('get_steering_vectors',self['frequencies'][0],self['positions'],self['az'],self['el'])
+
+    def _test_equality(self,funct_name,*args):
+        '''
+        @brief test the equality of return values from a function contained in
+            self._beamformers[name]
+        @param[in] funct_name - function (method) name to test equality of rv from
+            must be contained in all self._beamformers[name] values
+        @param[in] *args - arguments to pass to funct
+        @todo add timing into here
+        '''
+        base_val = getattr(self._beamformers[self['baseline_key']],funct_name)(*args)
         for k,v in self._beamformers.items():
-            cur_sv = v.get_steering_vectors(self['frequencies'][0],self['positions'],self['az'],self['el'])
-            sv_eq = np.isclose(base_sv,cur_sv,rtol=self['allowed_error'],atol=0)
-            print("{}: {}".format(k,np.all(sv_eq)))
-            if not np.all(sv_eq): #print the offenders and the difference
-                sv_neq = np.invert(sv_eq) #where they arent equal
-                err = ((base_sv[sv_neq]-cur_sv[sv_neq])/base_sv[sv_neq])
-                _,neq_idx = np.where(sv_neq) #how many places they arent equal
-                print("    # Not Equal Elements:   {}".format(len(neq_idx)))
-                print("    Max Error           :   {}".format(np.abs(np.max(err))))
-                print("    Max Error Element   :   {}".format(np.argmax(err)))
-                bnsv = base_sv[sv_neq]
-                cnsv = cur_sv[sv_neq]
-                
-    def test_beamform
+            cur_val = getattr(v,funct_name)(*args)
+            val_equal = np.isclose(cur_val,base_val,rtol=self['allowed_error'],atol=0)
+            all_equal = np.all(val_equal)
+            print("{}: {}".format(k,all_equal))
+            if not all_equal:
+                neq_tf = np.invert(val_equal) #true false array of where things arent equal
+                err = np.abs(cur_val-base_val)/np.abs(base_val)
+                print("    Non-equal Values:  {}%".format(np.sum(neq_tf)/len(neq_tf)*100))
+                print("    Max  Error      :  {} ".format(np.max(err)))
+                print("    Mean Error      :  {} ".format(np.mean(err)))
+                print("    Max Error Index :  {} ".format(np.argmax(err)))
+            
+      
+   # def test_beamform
     
     
     
