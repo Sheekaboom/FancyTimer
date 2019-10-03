@@ -219,13 +219,10 @@ class PythonBeamform(SpeedBeamform):
         @note azel here are in radians
         @note this alsow is the same for all pytho implementations
         @example
-        >>> myPythonBeamform._get_k_vector_azel(40e9,[-45,20,0],[45,0,3])
-        array([[-374.7356914097283038,  713.3447664223891707,
-                 231.3504328238943799],
-               [ 765.3567036207713272,    0.0000000000000000,
-                 342.1107031197503829],
-               [  -0.0000000000000000,  118.3062665560215549,
-                -829.9483383078243151]])
+        >>> import numpy as np
+        >>> myPythonBeamform._get_k_vector_azel(40e9,np.deg2rad([45, 50]),np.deg2rad([0,0]))
+        array([[592.7944909352411287,   0.0000000000000000, 592.7944909352411287],
+               [642.2041730818633596,   0.0000000000000000, 538.8732847735016094]])
         '''
         k = self._get_k(freq,1.,1.)
         #print(az,el)

@@ -105,7 +105,7 @@ class SerialBeamformNumpy(PythonBeamform):
         for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
             self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
-            out_vals[:,:] = np.sum(weights*meas_vals[fn]*sv,axis=-1)/num_pos
+            out_vals[fn,:] = np.sum(weights*meas_vals[fn]*sv,axis=-1)/num_pos
  
 from numba import vectorize, complex64,float32
 import cmath           
@@ -145,7 +145,7 @@ class SerialBeamformNumba(PythonBeamform):
             self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
             temp_mult = self.vector_mult_complex(weights,meas_vals[fn])
             temp_mult = self.vector_mult_complex(temp_mult,sv)
-            out_vals[:,:] = np.sum(temp_mult,axis=-1)/num_pos
+            out_vals[fn,:] = np.sum(temp_mult,axis=-1)/num_pos
             
     
     @vectorize(['complex128(complex128)'],target='cpu')
@@ -195,6 +195,7 @@ if __name__=='__main__':
     #freqs = np.arange(26.5e9,40e9,10e6)
     spacing = 2.99e8/np.max(freqs)/2 #get our lambda/2
     numel = [35,35,1] #number of elements in x,y
+    #numel = [5,1,1]
     Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacing,np.arange(numel[2])*spacing) #create our positions
     pos = np.stack((Xel.flatten(),Yel.flatten(),Zel.flatten()),axis=1) #get our position [x,y,z] list
     az = np.arange(-90,90,1)
