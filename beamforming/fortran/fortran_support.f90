@@ -8,6 +8,7 @@
 MODULE FORTRAN_SUPPORT
 
     IMPLICIT NONE
+    INTEGER, PARAMETER :: DP=8
 
     INTERFACE print_matrix
         MODULE PROCEDURE print_matrix_REAL
@@ -22,7 +23,7 @@ MODULE FORTRAN_SUPPORT
         INTEGER FUNCTION print_matrix_REAL(my_matrix)
             ! @brief function to print a matrix in a more readable manner (2D max)
             ! @param[in] my_matrix - matrix to print
-            REAL, intent(in), DIMENSION(:,:) :: my_matrix
+            REAL(DP), intent(in), DIMENSION(:,:) :: my_matrix
             INTEGER, DIMENSION(2) :: matrix_shape
             INTEGER :: i
             matrix_shape = shape(my_matrix)
@@ -35,7 +36,7 @@ MODULE FORTRAN_SUPPORT
         INTEGER FUNCTION print_matrix_COMPLEX(my_matrix)
             ! @brief function to print a complex matrix in a more readable manner (2D max)
             ! @param[in] my_matrix - matrix to print
-            COMPLEX, intent(in), DIMENSION(:,:) :: my_matrix
+            COMPLEX(DP), intent(in), DIMENSION(:,:) :: my_matrix
             INTEGER, DIMENSION(2) :: matrix_shape
             INTEGER :: i
             matrix_shape = shape(my_matrix)
@@ -48,7 +49,7 @@ MODULE FORTRAN_SUPPORT
         INTEGER FUNCTION print_vector_REAL(my_matrix)
             ! @brief function to print a matrix in a more readable manner (2D max)
             ! @param[in] my_matrix - matrix to print
-            REAL, intent(in), DIMENSION(:) :: my_matrix
+            REAL(DP), intent(in), DIMENSION(:) :: my_matrix
             INTEGER, DIMENSION(1) :: matrix_shape
             INTEGER :: i
             matrix_shape = shape(my_matrix)
@@ -61,7 +62,7 @@ MODULE FORTRAN_SUPPORT
         INTEGER FUNCTION print_vector_COMPLEX(my_matrix)
             ! @brief function to print a complex matrix in a more readable manner (2D max)
             ! @param[in] my_matrix - matrix to print
-            COMPLEX, intent(in), DIMENSION(:) :: my_matrix
+            COMPLEX(DP), intent(in), DIMENSION(:) :: my_matrix
             INTEGER, DIMENSION(1) :: matrix_shape
             INTEGER :: i
             matrix_shape = shape(my_matrix)
