@@ -62,7 +62,7 @@ class Modem(SamuraiDict):
             rv = self[name]
             return rv
         except KeyError:
-            raise AttributeError
+            raise AttributeError("{} is not an attribute or key of {}",name,type(self))
     
 class ModulatedSignal(SamuraiDict):
     '''

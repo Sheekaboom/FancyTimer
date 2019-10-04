@@ -15,11 +15,12 @@ class OFDMModem(Modem):
     '''
     @brief class to generate OFDM signals in frequency and time domain
     '''
-    def __init__(self,M,subcarrier_count,subcarrier_spacing,**arg_options):
+    def __init__(self,M,subcarrier_total,subcarrier_spacing,**arg_options):
         '''
         @brief constructor for the OFDMModem class
         @param[in] M - size of constellation (e.g. 16-QAM, M-QAM)
-        @param[in] subcarrier_count - number of subcarrier channels
+        @param[in] subcarrier_total - total number of subcarrier channels
+            self.subcarrier_count removes pilot tone count
         @param[in] subcarrier_spacing - spacing between subcarriers in Hz
         @param[in] arg_options - keyword arguments as follows:
             cp_length - length of the circular prefix (in ???)
@@ -32,7 +33,8 @@ class OFDMModem(Modem):
         
         self['constellation'] = QAMConstellation(M,**arg_options)
         self['subcarrier_spacing'] = subcarrier_spacing
-        self['subcarrier_count'] = subcarrier_count
+        self['subcarrier_total'] = subcarrier_total
+        self['pilot_dict'] = {}
 
         
     def modulate(self,data):
@@ -61,12 +63,13 @@ class OFDMModem(Modem):
         mysig = OFDMSignal(data)
         return mysig
         
-    def packetize_iq(self,iq_points,**kwargs):
+    def packetize_iq(self,iq_points,pilot_dict={},**kwargs):
         '''
         @brief take a set of iq points (complex numbers) and split them into packets for each time period
             The length of each packet will be equal to the number of subcarriers
             Extra channels in last packet will be filled with 'padding' value
         @param[in] iq_points - list of iq points to split up
+        @param[in] pilot_dict - dictionary from self.create_pilot_tones to add to packets
         @param[in] kwargs - keyword args as follows
             padding - complex number to pad unused channels with (when required)
         @return list of numpy arrays with each of the channel values, padded iq_points
@@ -77,6 +80,7 @@ class OFDMModem(Modem):
             options[k] = v
         num_pts = len(iq_points)
         iq_points = np.array(iq_points)
+        #change the count based on pilot tones
         mod_val = (len(iq_points)%self.subcarrier_count) #amount of padding required
         if mod_val is not 0:
             num_pad = self.subcarrier_count-mod_val
@@ -85,10 +89,55 @@ class OFDMModem(Modem):
             iq_points = np.concatenate((iq_points,pad))
         packets = np.split(iq_points,iq_points.shape[0]/self.subcarrier_count)
         pack_list = []
-        subcarriers = np.arange(self.subcarrier_count)*self.subcarrier_spacing
+        subcarriers = np.arange(self.subcarrier_total)*self.subcarrier_spacing
+        #add pilot tones
+        packets = self._add_pilot_tones_to_packet_data(packets) #still just list of data at this point
         for p in packets:
             pack_list.append(OFDMPacket([p,subcarriers]))
         return pack_list,iq_points
+    
+    def set_pilot_tones(self,subcarrier_idx,tone_function=None):
+        '''
+        @brief create pilot tones given a list of subcarrier indices and a function
+        @note if this function is None default is used (constant values)
+        @param[in] subcarrier_idx - list of subcarrier indices for where to add pilot_tones
+        @param[in] tone_function - function to generate tone from based on subcarrier idx
+        @note a tone of a single value can be returned with something like lambda
+        @note this sets self['pilot_dict']
+        @todo decide whether these tones should be data (works for all constellations)
+            or complex numbers that may or may not be a valid point in the constellation
+        '''
+        if tone_function is None:
+            tone_function = lambda idx:complex(1,1)
+        pilot_dict = {idx:tone_function(idx) for idx in subcarrier_idx}
+        self['pilot_dict'] = pilot_dict
+        
+    def _add_pilot_tones_to_packet_data(self,pack_list):
+        '''
+        @brief add pilot tones to a set of packet data
+        @param[in] pack_list - list of packets. self.subcarriers removes number of pilot tones
+            from the count
+        @return new numpy array of packets with pilots from self.pilot_dict
+        '''
+        out_pack_list = []
+        for p in pack_list:
+            for k in sorted(self.pilot_dict): #add keys from lowest to highest
+                #doing it like this allows us to ensure that we have the final index
+                #although this is definitely not efficient
+                p = np.insert(p,k,self.pilot_dict[k])
+            out_pack_list.append(p)
+        return np.array(out_pack_list)
+            
+                
+    @property
+    def pilot_count(self):
+        '''@breif getter for number of pilot tones'''
+        return len(self['pilot_dict'])
+    
+    @property
+    def subcarrier_count(self):
+        '''@brief return self['subcarrier_total']-self.pilot_count'''
+        return self['subcarrier_total']-self.pilot_count
     
     def depacketize_iq(self,pack_list,**kwargs):
         '''
@@ -97,8 +146,23 @@ class OFDMModem(Modem):
         '''
         iq_points = np.array([])
         for p in pack_list:
-            iq_points = np.concatenate((iq_points,p.data))
+            dat = p.data
+            dat = self._del_pilot_tones_from_packet_data([dat])[0] #remove pilot tones
+            iq_points = np.concatenate((iq_points,dat))
         return iq_points
+    
+    def _del_pilot_tones_from_packet_data(self,pack_list):
+        '''
+        @brief remove pilot tones from a set of packet data
+        @param[in] pack_list - remove pilot tones from data NOT OFDMPacket just numpy array
+        @note uses self.pilot_dict for indices of pilots
+        '''
+        pack_list_out = []
+        idx_list = list(self.pilot_dict.keys())
+        for p in pack_list:
+            p = np.delete(p,idx_list)
+            pack_list_out.append(p)
+        return np.array(pack_list_out)
         
     def _oversample(self,ofdm_signal):
         '''
@@ -275,8 +339,20 @@ if __name__=='__main__':
             @brief full test for the following
                 raw_data->QAM mapping->packetization->depacktization->qam demapping->raw_data
             '''
-            mymodem = OFDMModem(64,1666,60e3)
-            data = np.random.rand(9996)
+            subcarriers = 1666
+            channel_spacing = 60e3
+            qam_M = 64
+            num_packs = 6
+            pilot_step = int(subcarriers/8)
+            pilot_idx = np.arange(pilot_step,subcarriers,pilot_step,dtype=np.int32)
+            pilot_funct = lambda idx: complex(20+0j)
+            #init our modem
+            mymodem = OFDMModem(qam_M,subcarriers,channel_spacing)
+            #set the pilot tones
+            mymodem.set_pilot_tones(pilot_idx,pilot_funct)
+            #set our data
+            num_data = mymodem.subcarrier_count*6
+            data = np.random.rand(num_data)
             data_in=data
             mapped = mymodem.constellation.map(data)
             packs,_ = mymodem.packetize_iq(mapped)
@@ -293,11 +369,25 @@ if __name__=='__main__':
     
     out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC_27p5GHz'
     
-    mymodem = OFDMModem(64,1666,60e3)
+    subcarriers = 1666
+    channel_spacing = 60e3
+    qam_M = 64
+    num_packs = 6
+    pilot_step = int(subcarriers/8)
+    pilot_idx = np.arange(pilot_step,subcarriers,pilot_step,dtype=np.int32)
+    pilot_funct = lambda idx: complex(20+0j)
+    
+    mymodem = OFDMModem(qam_M,subcarriers,channel_spacing)
     #mymodem = OFDMModem(256,7,60e3)
     data = 'testing'.encode()
-    np.random.seed(1234) #reset seed for testing    
-    data = np.random.rand(9996)
+    np.random.seed(1234) #reset seed for testing  
+    
+    #set our pilot tones
+    mymodem.set_pilot_tones(pilot_idx,pilot_funct)
+    
+    num_data = mymodem.subcarrier_count*6
+    data = np.random.rand(num_data)
+    #data = np.random.rand(9996)
     mapped = mymodem.constellation.map(data)
     packs,mapped_in = mymodem.packetize_iq(mapped)
     
