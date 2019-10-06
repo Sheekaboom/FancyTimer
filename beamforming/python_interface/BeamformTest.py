@@ -6,12 +6,15 @@
 import numpy as np
 import timeit
 
-from samurai.base.SamuraiDict import SamuraiDict
+try:
+    from samurai.base.SamuraiDict import   SamuraiDict
+except ModuleNotFoundError:
+    from collections import OrderedDict as SamuraiDict
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformNumpy
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformNumba
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformFortran
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformPython
-from pycom.beamforming.python_interface.MatlabBeamform import SerialBeamformMatlab
+#from pycom.beamforming.python_interface.MatlabBeamform import SerialBeamformMatlab
 
 class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to print out a full test
     '''

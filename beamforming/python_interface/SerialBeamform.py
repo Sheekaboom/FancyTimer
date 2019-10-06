@@ -7,8 +7,8 @@
 import numpy as np
 import os
 
-from SpeedBeamform import SpeedBeamform,PythonBeamform
-from SpeedBeamform import get_ctypes_pointers
+from pycom.beamforming.python_interface.SpeedBeamform import SpeedBeamform,PythonBeamform
+from pycom.beamforming.python_interface.SpeedBeamform import get_ctypes_pointers
 import ctypes
 wdir = os.path.dirname(os.path.realpath(__file__))
 

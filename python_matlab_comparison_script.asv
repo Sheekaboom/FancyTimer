@@ -1,0 +1,27 @@
+%% Compare matlab and python for the following
+% Add/Sub/Mult/Div
+% Exp, matmul, sum
+% LU Decomp, fft, ODE?, Sparse?
+m = 3000; n = 3000;
+a = rand(m,n)+1i*rand(m,n);
+b = rand(m,n)+1i*rand(m,n);
+
+function [time_list] = fancy_timer(funct_to_time,num_reps)
+% @brief return a list of times from num_reps
+% @param[in] funct_to_time - lambda function to call
+% @param[in] num_reps -how many times to repeat
+time_list = zeros(1,num_reps);
+for r=1:num_reps
+    tic;
+    funct_to_time();
+    time_list(r) = toc;
+end
+end
+
+% Add/Sub/Mult/Div
+add_fun = @() a.+b;
+sub_fun = @() a.+b;
+mul_fun = @() a.+b;
+div_fun = @() a.+b;
+
+%% LU decomp
