@@ -9,6 +9,7 @@ import numpy as np
 from pycom.modulation.Modulation import Modem
 from pycom.modulation.Modulation import generate_gray_code_mapping
 from pycom.modulation.Modulation import generate_root_raised_cosine,lowpass_filter
+from samurai.analysis.support.MUFResult import complex2magphase,magphase2complex
 import numpy as np
 import matplotlib.pyplot as plt
 import cmath
@@ -93,32 +94,45 @@ class QAMConstellation():
         val = self._constellation_dict[key]
         return val
     
-    def _get_values(self,locations,correct_locations=None):
+    def _get_values(self,input_locations,correct_locations=None):
         '''
         @brief get a value (code) from a given constellation location(s) (complex number)
         @param[in] locations - complex number(s) for constellation value
         @param[in/OPT] correct_locations - correct constellation points if not provided simply assume the closest one
         @return np(array) of bit values, numpy array of complex errors from closest key
         '''
-        if not hasattr(locations,'__iter__'):
-            locations = [locations]
+        if not hasattr(input_locations,'__iter__'):
+            input_locations = [input_locations]
         location_dict = self._location_constellation_dict
         location_arr = np.array(list(location_dict.keys())) #list of locations
+        matched_locations = np.zeros_like(input_locations) #the correct locations (if not provided)
         values = []
-        errors = []
-        for i,l in enumerate(locations):
+        for i,l in enumerate(input_locations):
             if correct_locations is not None: #then we use the provided correct location
-                val_loc = correct_locations[i] #the correct location
-                cur_err = val_loc-l #complex distance from correct location
+                matched_locations[i] = correct_locations[i] #the correct location
             else:
                 diffs = location_arr-l #complex distance from each location
                 min_arg = np.argmin(np.abs(diffs))
-                cur_err = diffs[min_arg] #get the error from the closest constellation point
-                val_loc = location_arr[min_arg] #get the key to the closest constellation point
-            val = np.flip(location_dict[val_loc],axis=0)
-            values.append(val)
-            errors.append(cur_err)
-        return np.array(values),np.array(errors)
+                matched_locations[i] = location_arr[min_arg] #get the key to the closest constellation point
+            values.append(np.flip(location_dict[matched_locations[i]],axis=0))
+            #val = np.flip(location_dict[matched_locations[i]],axis=0)
+            #values.append(val)
+            #errors.append(cur_err)
+        evm = self.calculate_evm(input_locations,matched_locations)
+        return np.array(values),evm
+    
+    def calculate_evm(self,measured_values,correct_values):
+        '''
+        @brief calculate the evm from a signal. This is calulcated from equation (1)
+            from "Analysis on the Denition Consistency Problem of EVM Measurement 
+            and Its Solution" by Z. Feng, J. Riu, S. Jing-Lu, and Z. Xin
+        @param[in] input_signal - QAMSignal with the ideal IQ locations in data_iq
+        @param[in] output_signal - QAMSignal with the decoded IQ locations in data_iq
+        '''
+        evm_num = np.abs((correct_values-measured_values)**2).sum()
+        evm_den = np.abs(correct_values**2).sum()
+        evm = np.sqrt(evm_num/evm_den)*100
+        return evm
     
     def _generate_qam_constellation(self):
         '''
@@ -199,6 +213,17 @@ def generate_qam_position(code_number,num_codes):
     imag_part = (code_number%row_len)*step_size-1
     real_part = (np.floor(code_number/row_len)*step_size)-1
     return complex(real_part,imag_part)
+
+'''
+#these are redefined from MUFResult
+def complex2magphase(data):
+    return np.abs(data),np.angle(data)
+
+def magphase2complex(mag,phase):
+    real = mag*np.cos(phase)
+    imag = mag*np.sin(phase)
+    return real+1j*imag
+'''
 
 class QAMCorrection():
     '''

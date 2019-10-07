@@ -8,7 +8,9 @@ from pycom.modulation.Modulation import Modem
 from pycom.modulation.Modulation import ModulatedSignal,ModulatedPacket
 from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
 from pycom.modulation.QAM import QAMConstellation
+from samurai.analysis.support.MUFResult import complex2magphase,magphase2complex
 import numpy as np
+from scipy import interpolate 
 import matplotlib.pyplot as plt
 
 class OFDMModem(Modem):
@@ -127,7 +129,43 @@ class OFDMModem(Modem):
                 p = np.insert(p,k,self.pilot_dict[k])
             out_pack_list.append(p)
         return np.array(out_pack_list)
-            
+        
+    def get_channel_correction_funct_from_pilots(self,packet,**kwargs):
+        '''
+        @brief take our input complex packet data and linearize the channel from it
+        @param[in] packet - packet of OFDMPacket type
+        @note interpolation done with mag/phase NOT real/complex
+        @note this also assumes the pilots in packet are being matched to those in self['pilot_dict']
+        @return a function to correct the packets for the current channel
+            This allows different ofdm frames to be corrected for the same channel
+        '''
+        pilot_subcarriers = [packet.subcarriers[idx] for idx in self['pilot_dict'].keys()]
+        pilot_packet_data = [packet.data[idx] for idx in self['pilot_dict'].keys()] #extract pilot data
+        pilot_real_data = [pd for pd in self['pilot_dict'].values()] #extract the correct data
+        pp_mag,pp_phase = complex2magphase(pilot_packet_data) #recieved data
+        pr_mag,pr_phase = complex2magphase(pilot_real_data) #correct data
+        p_mag_norm = pr_mag/pp_mag #normalized correction at each pilot
+        p_phase_norm = pr_phase-pp_phase #normalized phase correction
+        mag_interp_fun = interpolate.interp1d(pilot_subcarriers,p_mag_norm,kind='linear',fill_value='extrapolate')
+        mag_correction = mag_interp_fun(packet.subcarriers)
+        phase_interp_fun = interpolate.interp1d(pilot_subcarriers,p_phase_norm,kind='linear',fill_value='extrapolate')
+        phase_correction = phase_interp_fun(packet.subcarriers)
+        def channel_correct_funct(pack_list,**kwargs):
+            '''
+            @brief function to correct a list of OFDMPackets
+            @param[in] pack_list - list of OFDM packets
+            '''
+            if not isinstance(pack_list,list):
+                pack_list = [pack_list]
+            out_packs = []
+            for p in pack_list:
+                cur_mag,cur_phase = complex2magphase(p.data)
+                cur_mag*=mag_correction
+                cur_phase+=phase_correction
+                p.data = magphase2complex(cur_mag,cur_phase)
+                out_packs.append(p)
+            return out_packs
+        return channel_correct_funct
                 
     @property
     def pilot_count(self):
@@ -201,7 +239,7 @@ class OFDMModem(Modem):
         @brief ideal unconversion in frequency domain of the ofdm signal
         @param[in] ofdm_packets - ofdm signal class with frequency domain packets
         '''
-        pass
+        raise NotImplementedError
         
     def downconvert(self,ofdm_signal):
         '''
@@ -392,6 +430,8 @@ if __name__=='__main__':
     packs,mapped_in = mymodem.packetize_iq(mapped)
     
     p = packs[0]
+    corr_fun = mymodem.get_channel_correction_funct_from_pilots(p)
+    corr_pack = corr_fun([p])
     for i,p in enumerate(packs):
         p.S[21].freq_list+=27.5e9
         out_name = os.path.join(out_dir,'packet_{}.s1p'.format(i))
@@ -400,7 +440,7 @@ if __name__=='__main__':
     #p.plot_iq(mymodem['constellation'])
     packs_out = []
     for p in packs:
-        p.data+=complex(1,0)
+        p.data*=complex(1,0)
         packs_out.append(p)
         
     Schannel = 1 #set to an SnpParam
