@@ -226,7 +226,7 @@ class QAMModem(Modem):
     def calculate_evm(self,input_signal,output_signal):
         '''
         @brief calculate the evm from a signal. This is calulcated from equation (1)
-            from "Analysis on the Denition Consistency Problem of EVM Measurement 
+            from "Analysis on the Definition Consistency Problem of EVM Measurement 
             and Its Solution" by Z. Feng, J. Riu, S. Jing-Lu, and Z. Xin
         @param[in] input_signal - QAMSignal with the ideal IQ locations in data_iq
         @param[in] output_signal - QAMSignal with the decoded IQ locations in data_iq
