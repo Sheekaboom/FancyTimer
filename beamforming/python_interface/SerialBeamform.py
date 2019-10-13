@@ -112,6 +112,20 @@ import cmath
 ############################################
 ### Numba vector implementation 
 ############################################
+from numba import complex64,complex128,jit
+
+@vectorize([complex64(complex64),complex128(complex128)],target='parallel')
+def vector_exp_complex(vals):
+    return cmath.exp(-1j*vals)
+    
+@vectorize([complex64(complex64,complex64,complex64),complex128(complex128,complex128,complex128)],target='parallel')
+def vector_exp_complex_3x(v1,v2,v3):
+    return cmath.exp(-1j*v1*v2*v3)
+
+@vectorize([complex64(complex64,complex64),complex128(complex128,complex128)],target='parallel')
+def vector_mult_complex(a,b):
+    return a*b
+    
 class SerialBeamformNumba(PythonBeamform):
     '''
     @brief python beamforming mixing numba vectorize and numpy
@@ -130,8 +144,10 @@ class SerialBeamformNumba(PythonBeamform):
         @brief override to utilize for python engine
         '''       
         kvec = self._get_k_vector_azel(freq,az,el)
-        for an in range(num_azel):
-            steering_vecs_out[an,:] = self.vector_exp_complex(np.sum(self.vector_mult_complex(positions,kvec[an]),axis=-1))
+        #for an in range(num_azel):
+            #steering_vecs_out[an,:] = np.exp(-1j*np.sum((positions*kvec[an]),axis=-1))
+            #steering_vecs_out[an,:] = vector_exp_complex(np.sum(vector_mult_complex(positions,kvec[an]),axis=-1))
+        steering_vecs_out[:,:] = vector_exp_complex(np.matmul(positions,kvec.transpose())).transpose()
     
     def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
         '''
@@ -143,18 +159,8 @@ class SerialBeamformNumba(PythonBeamform):
         for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
             self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
-            temp_mult = self.vector_mult_complex(weights,meas_vals[fn])
-            temp_mult = self.vector_mult_complex(temp_mult,sv)
+            temp_mult = vector_mult_complex(weights,meas_vals[fn],sv)
             out_vals[fn,:] = np.sum(temp_mult,axis=-1)/num_pos
-            
-    
-    @vectorize(['complex128(complex128)'],target='cpu')
-    def vector_exp_complex(vals):
-        return cmath.exp(-1j*vals)
-    
-    @vectorize(['complex128(complex128,complex128)'],target='cpu')
-    def vector_mult_complex(a,b):
-        return a*b
     
 
 if __name__=='__main__':
