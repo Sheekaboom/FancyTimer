@@ -4,22 +4,25 @@ Created on Mon Jun 17 12:40:46 2019
 
 @author: ajw5
 """
-from Modulation import Modem
-from Modulation import ModulatedSignal,ModulatedPacket
-from Modulation import lowpass_filter_zero_phase,bandstop_filter
-from QAM import QAMConstellation
+from pycom.modulation.Modulation import Modem
+from pycom.modulation.Modulation import ModulatedSignal,ModulatedPacket
+from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
+from pycom.modulation.QAM import QAMConstellation
+from samurai.analysis.support.MUFResult import complex2magphase,magphase2complex
 import numpy as np
+from scipy import interpolate 
 import matplotlib.pyplot as plt
 
 class OFDMModem(Modem):
     '''
     @brief class to generate OFDM signals in frequency and time domain
     '''
-    def __init__(self,M,subcarrier_count,subcarrier_spacing,**arg_options):
+    def __init__(self,M,subcarrier_total,subcarrier_spacing,**arg_options):
         '''
         @brief constructor for the OFDMModem class
         @param[in] M - size of constellation (e.g. 16-QAM, M-QAM)
-        @param[in] subcarrier_count - number of subcarrier channels
+        @param[in] subcarrier_total - total number of subcarrier channels
+            self.subcarrier_count removes pilot tone count
         @param[in] subcarrier_spacing - spacing between subcarriers in Hz
         @param[in] arg_options - keyword arguments as follows:
             cp_length - length of the circular prefix (in ???)
@@ -32,7 +35,8 @@ class OFDMModem(Modem):
         
         self['constellation'] = QAMConstellation(M,**arg_options)
         self['subcarrier_spacing'] = subcarrier_spacing
-        self['subcarrier_count'] = subcarrier_count
+        self['subcarrier_total'] = subcarrier_total
+        self['pilot_dict'] = {}
 
         
     def modulate(self,data):
@@ -61,15 +65,16 @@ class OFDMModem(Modem):
         mysig = OFDMSignal(data)
         return mysig
         
-    def packetize_iq(self,iq_points,**kwargs):
+    def packetize_iq(self,iq_points,pilot_dict={},**kwargs):
         '''
         @brief take a set of iq points (complex numbers) and split them into packets for each time period
             The length of each packet will be equal to the number of subcarriers
             Extra channels in last packet will be filled with 'padding' value
         @param[in] iq_points - list of iq points to split up
+        @param[in] pilot_dict - dictionary from self.create_pilot_tones to add to packets
         @param[in] kwargs - keyword args as follows
             padding - complex number to pad unused channels with (when required)
-        @return list of numpy arrays with each of the channel values
+        @return list of numpy arrays with each of the channel values, padded iq_points
         '''
         options = {}
         options['padding'] = complex(0,0)
@@ -77,6 +82,7 @@ class OFDMModem(Modem):
             options[k] = v
         num_pts = len(iq_points)
         iq_points = np.array(iq_points)
+        #change the count based on pilot tones
         mod_val = (len(iq_points)%self.subcarrier_count) #amount of padding required
         if mod_val is not 0:
             num_pad = self.subcarrier_count-mod_val
@@ -85,10 +91,116 @@ class OFDMModem(Modem):
             iq_points = np.concatenate((iq_points,pad))
         packets = np.split(iq_points,iq_points.shape[0]/self.subcarrier_count)
         pack_list = []
-        subcarriers = np.arange(self.subcarrier_count)*self.subcarrier_spacing
+        subcarriers = np.arange(self.subcarrier_total)*self.subcarrier_spacing
+        #add pilot tones
+        packets = self._add_pilot_tones_to_packet_data(packets) #still just list of data at this point
         for p in packets:
-            pack_list.append(OFDMPacket(p,subcarriers))
-        return pack_list
+            pack_list.append(OFDMPacket([p,subcarriers]))
+        return pack_list,iq_points
+    
+    def set_pilot_tones(self,subcarrier_idx,tone_function=None):
+        '''
+        @brief create pilot tones given a list of subcarrier indices and a function
+        @note if this function is None default is used (constant values)
+        @param[in] subcarrier_idx - list of subcarrier indices for where to add pilot_tones
+        @param[in] tone_function - function to generate tone from based on subcarrier idx
+        @note a tone of a single value can be returned with something like lambda
+        @note this sets self['pilot_dict']
+        @todo decide whether these tones should be data (works for all constellations)
+            or complex numbers that may or may not be a valid point in the constellation
+        '''
+        if tone_function is None:
+            tone_function = lambda idx:complex(1,1)
+        pilot_dict = {idx:tone_function(idx) for idx in subcarrier_idx}
+        self['pilot_dict'] = pilot_dict
+        
+    def _add_pilot_tones_to_packet_data(self,pack_list):
+        '''
+        @brief add pilot tones to a set of packet data
+        @param[in] pack_list - list of packets. self.subcarriers removes number of pilot tones
+            from the count
+        @return new numpy array of packets with pilots from self.pilot_dict
+        '''
+        out_pack_list = []
+        for p in pack_list:
+            for k in sorted(self.pilot_dict): #add keys from lowest to highest
+                #doing it like this allows us to ensure that we have the final index
+                #although this is definitely not efficient
+                p = np.insert(p,k,self.pilot_dict[k])
+            out_pack_list.append(p)
+        return np.array(out_pack_list)
+        
+    def get_channel_correction_funct_from_pilots(self,packet,**kwargs):
+        '''
+        @brief take our input complex packet data and linearize the channel from it
+        @param[in] packet - packet of OFDMPacket type
+        @note interpolation done with mag/phase NOT real/complex
+        @note this also assumes the pilots in packet are being matched to those in self['pilot_dict']
+        @return a function to correct the packets for the current channel
+            This allows different ofdm frames to be corrected for the same channel
+        '''
+        pilot_subcarriers = [packet.subcarriers[idx] for idx in self['pilot_dict'].keys()]
+        pilot_packet_data = [packet.data[idx] for idx in self['pilot_dict'].keys()] #extract pilot data
+        pilot_real_data = [pd for pd in self['pilot_dict'].values()] #extract the correct data
+        pp_mag,pp_phase = complex2magphase(pilot_packet_data) #recieved data
+        pr_mag,pr_phase = complex2magphase(pilot_real_data) #correct data
+        p_mag_norm = pr_mag/pp_mag #normalized correction at each pilot
+        p_phase_norm = pr_phase-pp_phase #normalized phase correction
+        mag_interp_fun = interpolate.interp1d(pilot_subcarriers,p_mag_norm,kind='linear',fill_value='extrapolate')
+        mag_correction = mag_interp_fun(packet.subcarriers)
+        phase_interp_fun = interpolate.interp1d(pilot_subcarriers,p_phase_norm,kind='linear',fill_value='extrapolate')
+        phase_correction = phase_interp_fun(packet.subcarriers)
+        def channel_correct_funct(pack_list,**kwargs):
+            '''
+            @brief function to correct a list of OFDMPackets
+            @param[in] pack_list - list of OFDM packets
+            '''
+            if not isinstance(pack_list,list):
+                pack_list = [pack_list]
+            out_packs = []
+            for p in pack_list:
+                cur_mag,cur_phase = complex2magphase(p.data)
+                cur_mag*=mag_correction
+                cur_phase+=phase_correction
+                p.data = magphase2complex(cur_mag,cur_phase)
+                out_packs.append(p)
+            return out_packs
+        return channel_correct_funct
+                
+    @property
+    def pilot_count(self):
+        '''@breif getter for number of pilot tones'''
+        return len(self['pilot_dict'])
+    
+    @property
+    def subcarrier_count(self):
+        '''@brief return self['subcarrier_total']-self.pilot_count'''
+        return self['subcarrier_total']-self.pilot_count
+    
+    def depacketize_iq(self,pack_list,**kwargs):
+        '''
+        @brief take a set of packets and change to a set of iq points
+        @param[in] pack_list - list of Modulated packets to depacketize
+        '''
+        iq_points = np.array([])
+        for p in pack_list:
+            dat = p.data
+            dat = self._del_pilot_tones_from_packet_data([dat])[0] #remove pilot tones
+            iq_points = np.concatenate((iq_points,dat))
+        return iq_points
+    
+    def _del_pilot_tones_from_packet_data(self,pack_list):
+        '''
+        @brief remove pilot tones from a set of packet data
+        @param[in] pack_list - remove pilot tones from data NOT OFDMPacket just numpy array
+        @note uses self.pilot_dict for indices of pilots
+        '''
+        pack_list_out = []
+        idx_list = list(self.pilot_dict.keys())
+        for p in pack_list:
+            p = np.delete(p,idx_list)
+            pack_list_out.append(p)
+        return np.array(pack_list_out)
         
     def _oversample(self,ofdm_signal):
         '''
@@ -125,9 +237,9 @@ class OFDMModem(Modem):
     def ideal_upconvert(self,ofdm_signal):
         '''
         @brief ideal unconversion in frequency domain of the ofdm signal
-        @param[in] ofdm_signal -ofdm signal class with frequency domain packets
+        @param[in] ofdm_packets - ofdm signal class with frequency domain packets
         '''
-        pass
+        raise NotImplementedError
         
     def downconvert(self,ofdm_signal):
         '''
@@ -226,34 +338,116 @@ class OFDMPacket(ModulatedPacket):
     @brief class to hold a single OFDM packet. This will be frequency domain data
         which will represent a single OFDM frame
     '''
-    def __init__(self,data,freqs,**kwargs):
+    def __init__(self,input_file=None,**kwargs):
         '''
         @brief constructor
-        @param[in] data - complex modulated data on each subcarrier
-        @param[in] freqs - subcarrier frequency list
+        @param[in] input file - [[packet_data],[freq/time_list]] or string of path to touchstone file
         '''
-        super().__init__(data,freqs,**kwargs)
+        super().__init__(input_file,**kwargs)
+    
+    @property
+    def subcarriers(self):
+        '''
+        @brief simply another name for freq_list. This packet should only have subcarriers though
+        '''
+        return self.freq_list
         
 if __name__=='__main__':
     
     import copy
     import os
     from Modulation import plot_frequency_domain
+    import unittest
     
-    out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC'
+    class OFDMTest(unittest.TestCase):
+        
+        def test_packetize(self):
+            '''
+            @brief test OFDMModem.packetize_iq and OFDMModem.depacketize_iq symmetric property
+            '''
+            mymodem = OFDMModem(64,1666,60e3)
+            data = np.random.rand(9996)
+            mapped = mymodem.constellation.map(data)
+            packs,mapped_in = mymodem.packetize_iq(mapped)
+            mapped_out = mymodem.depacketize_iq(packs)
+            self.assertTrue(np.all(mapped_in==mapped_out))
+        
+        def test_encode(self):
+            '''
+            @brief full test for the following
+                raw_data->QAM mapping->packetization->depacktization->qam demapping->raw_data
+            '''
+            subcarriers = 1666
+            channel_spacing = 60e3
+            qam_M = 64
+            num_packs = 6
+            pilot_step = int(subcarriers/8)
+            pilot_idx = np.arange(pilot_step,subcarriers,pilot_step,dtype=np.int32)
+            pilot_funct = lambda idx: complex(20+0j)
+            #init our modem
+            mymodem = OFDMModem(qam_M,subcarriers,channel_spacing)
+            #set the pilot tones
+            mymodem.set_pilot_tones(pilot_idx,pilot_funct)
+            #set our data
+            num_data = mymodem.subcarrier_count*6
+            data = np.random.rand(num_data)
+            data_in=data
+            mapped = mymodem.constellation.map(data)
+            packs,_ = mymodem.packetize_iq(mapped)
+            from samurai.base.TouchstoneEditor import SnpParam
+            channel = SnpParam(packs[0].freq_list,np.ones(packs[0].freq_list.shape))
+            packs_out = [pack*channel for pack in packs]
+            mapped_out = mymodem.depacketize_iq(packs_out)
+            data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
+            self.assertTrue(np.all(data_in==data_out))
+            
+    suite = unittest.TestLoader().loadTestsFromTestCase(OFDMTest)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    #unittest.main()
     
-    mymodem = OFDMModem(64,1666,60e3)
+    out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC_27p5GHz'
+    
+    subcarriers = 1666
+    channel_spacing = 60e3
+    qam_M = 64
+    num_packs = 6
+    pilot_step = int(subcarriers/8)
+    pilot_idx = np.arange(pilot_step,subcarriers,pilot_step,dtype=np.int32)
+    pilot_funct = lambda idx: complex(20+0j)
+    
+    mymodem = OFDMModem(qam_M,subcarriers,channel_spacing)
+    #mymodem = OFDMModem(256,7,60e3)
     data = 'testing'.encode()
-    data = np.random.rand(9996)
+    np.random.seed(1234) #reset seed for testing  
+    
+    #set our pilot tones
+    mymodem.set_pilot_tones(pilot_idx,pilot_funct)
+    
+    num_data = mymodem.subcarrier_count*6
+    data = np.random.rand(num_data)
+    #data = np.random.rand(9996)
     mapped = mymodem.constellation.map(data)
-    packs = mymodem.packetize_iq(mapped)
+    packs,mapped_in = mymodem.packetize_iq(mapped)
+    
     p = packs[0]
+    corr_fun = mymodem.get_channel_correction_funct_from_pilots(p)
+    corr_pack = corr_fun([p])
     for i,p in enumerate(packs):
         p.S[21].freq_list+=27.5e9
         out_name = os.path.join(out_dir,'packet_{}.s1p'.format(i))
         #print(out_name)
-        p.write(out_name)
-    p.plot_iq(mymodem['constellation'])
+        #p.write(out_name)
+    #p.plot_iq(mymodem['constellation'])
+    packs_out = []
+    for p in packs:
+        p.data*=complex(1,0)
+        packs_out.append(p)
+        
+    Schannel = 1 #set to an SnpParam
+    
+    mapped_out = mymodem.depacketize_iq(packs_out)
+    #data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
+    data_out,err = mymodem.constellation.unmap(mapped_out,dtype=np.ubyte)
     #data = np.random.rand(10)
     #mysig = mymodem.modulate(data)
     #mymodem.upconvert(mysig)
