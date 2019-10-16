@@ -4,7 +4,7 @@
 % LU Decomp, fft, ODE?, Sparse?
 m = 5000; n = 5000;
 num_reps = 10;
-rng(1234); #set the seed
+rng(1234); set the seed
 a = rand(m,n)+1i*rand(m,n);
 b = rand(m,n)+1i*rand(m,n);
 %a = real(a);

@@ -216,48 +216,49 @@ sparse_y_idx = [yIdx,yIdx,yIdx,yIdx,yIdx];
 A = sparse(sparse_y_idx,sparse_x_idx,sparse_vals);
 
 %solve for our scatterfield
-x = A\fr';
+x1 = A\fr';
 
 %reshape back into a matrix
-E_scat = reshape(x,[cells_x,cells_y]);
+E_scat = reshape(x1,[cells_x,cells_y]);
 
 %create our total field
 E_tot = E_scat+conj(Ezi);
-
-x = (1:cells_x).*dx;y = (1:cells_y).*dy;
-[X,Y] = meshgrid((1:cells_x).*dx,(1:cells_y).*dy);
-
-%setfigures;
-subplot(2,1,1);
-surf(x,y,real(Ezi)');
-title('Incident Field');
-xlabel('x (cm)');
-ylabel('y (cm)');
-shading interp;
-subplot(2,1,2);
-surf(x,y,abs(E_tot)');
-title('Total Field Magnitude');
-xlabel('x (cm)');
-ylabel('y (cm)');
-shading interp;
-
-screen_size = get(0,'Screensize');
-fig_size = screen_size;
-fig_size(3) = fig_size(3)/2;
-set(gcf,'Position',fig_size);
-view([0,90]);
-if(eps_cyl>1e2) %pec
-    val_str = 'PEC';
-else
-    eps_str = num2str(eps_cyl);
-    mu_str  = num2str(mu_cyl);
-    val_str = ['mu',strrep(mu_str,'.','p'),'_'];
-    val_str = [val_str,'eps',strrep(eps_str,'.','p')];
-    val_str = [val_str,'_6e9'];
 end
-%savestr = [val_str,'_',shape];
-%saveas(gcf,['figs/',savestr],'png');
-end
+%% plot
+% x = (1:cells_x).*dx;y = (1:cells_y).*dy;
+% [X,Y] = meshgrid((1:cells_x).*dx,(1:cells_y).*dy);
+% 
+% %setfigures;
+% subplot(2,1,1);
+% surf(x,y,real(Ezi)');
+% title('Incident Field');
+% xlabel('x (cm)');
+% ylabel('y (cm)');
+% shading interp;
+% subplot(2,1,2);
+% surf(x,y,abs(E_tot)');
+% title('Total Field Magnitude');
+% xlabel('x (cm)');
+% ylabel('y (cm)');
+% shading interp;
+% 
+% screen_size = get(0,'Screensize');
+% fig_size = screen_size;
+% fig_size(3) = fig_size(3)/2;
+% set(gcf,'Position',fig_size);
+% view([0,90]);
+% if(eps_cyl>1e2) %pec
+%     val_str = 'PEC';
+% else
+%     eps_str = num2str(eps_cyl);
+%     mu_str  = num2str(mu_cyl);
+%     val_str = ['mu',strrep(mu_str,'.','p'),'_'];
+%     val_str = [val_str,'eps',strrep(eps_str,'.','p')];
+%     val_str = [val_str,'_6e9'];
+% end
+% %savestr = [val_str,'_',shape];
+% %saveas(gcf,['figs/',savestr],'png');
+% %end
 
 
 
