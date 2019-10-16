@@ -6,12 +6,15 @@
 import numpy as np
 import timeit
 
-from samurai.base.SamuraiDict import SamuraiDict
+try:
+    from samurai.base.SamuraiDict import   SamuraiDict
+except ModuleNotFoundError:
+    from collections import OrderedDict as SamuraiDict
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformNumpy
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformNumba
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformFortran
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformPython
-from pycom.beamforming.python_interface.MatlabBeamform import SerialBeamformMatlab
+#from pycom.beamforming.python_interface.MatlabBeamform import SerialBeamformMatlab
 
 class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to print out a full test
     '''
@@ -40,7 +43,7 @@ class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to prin
                 'NUMBA':SerialBeamformNumba,
                 'FORTRAN':SerialBeamformFortran
                 }
-        self['beamform_class_dict']['MATLAB'] = SerialBeamformMatlab
+        #self['beamform_class_dict']['MATLAB'] = SerialBeamformMatlab
        #self['beamform_class_dict']['PYTHON'] = SerialBeamformPython
         
     def _init_beamform_classes(self):
@@ -194,7 +197,16 @@ class FancyTimerStats(SamuraiDict):
         self['speedup'] = base_fts['mean']/self['mean']
 
 
-fancy_template = '''
+
+def fancy_timeit(mycallable,num_reps=3,**kwargs):
+    '''
+    @brief easy timeit function that will return the results of a function
+        along with a dictionary of timing statistics
+    @param[in] mycallable - callable statement to time
+    @param[in/OPT] num_reps - number of repeats for timing and statistics
+    '''
+    
+    fancy_template = '''
 def inner(_it, _timer{init}):
     {setup}
     time_list = []
@@ -205,16 +217,9 @@ def inner(_it, _timer{init}):
         time_list.append(_t1-_t0) #append the time to run
     return time_list, retval
 '''    
-def fancy_timeit(mycallable,num_reps=3):
-    '''
-    @brief easy timeit function that will return the results of a function
-        along with a dictionary of timing statistics
-    @param[in] mycallable - callable statement to time
-    @param[in/OPT] num_reps - number of repeats for timing and statistics
-    '''
     
     timeit.template = fancy_template #set the template
-    ft = timeit.Timer(mycallable)
+    ft = timeit.Timer(stmt=mycallable,**kwargs)
     tl,rv = ft.timeit(number=num_reps)
     return FancyTimerStats(tl),rv
     
@@ -224,8 +229,10 @@ def fancy_timeit(mycallable,num_reps=3):
 if __name__ == '__main__':
     bftest = BeamformTest()
     bftest['frequencies'] = [40e9]
-    bftest.test_steering_vectors()
-    #bftest.test_beamformed_values()
+    #bftest.test_steering_vectors()
+    bftest.test_beamformed_values()
+    for v in bftest['beamformed_values_test']:
+        print(v.tostring())
     
     '''
     #timer testing
