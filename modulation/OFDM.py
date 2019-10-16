@@ -10,6 +10,7 @@ from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filte
 from pycom.modulation.QAM import QAMConstellation
 from samurai.analysis.support.MUFResult import complex2magphase,magphase2complex
 import numpy as np
+import copy
 from scipy import interpolate 
 import matplotlib.pyplot as plt
 
@@ -65,13 +66,12 @@ class OFDMModem(Modem):
         mysig = OFDMSignal(data)
         return mysig
         
-    def packetize_iq(self,iq_points,pilot_dict={},**kwargs):
+    def packetize_iq(self,iq_points,**kwargs):
         '''
         @brief take a set of iq points (complex numbers) and split them into packets for each time period
             The length of each packet will be equal to the number of subcarriers
             Extra channels in last packet will be filled with 'padding' value
         @param[in] iq_points - list of iq points to split up
-        @param[in] pilot_dict - dictionary from self.create_pilot_tones to add to packets
         @param[in] kwargs - keyword args as follows
             padding - complex number to pad unused channels with (when required)
         @return list of numpy arrays with each of the channel values, padded iq_points
@@ -83,16 +83,19 @@ class OFDMModem(Modem):
         num_pts = len(iq_points)
         iq_points = np.array(iq_points)
         #change the count based on pilot tones
-        mod_val = (len(iq_points)%self.subcarrier_count) #amount of padding required
-        if mod_val is not 0:
-            num_pad = self.subcarrier_count-mod_val
-            print("Warning {} iq points not divisible by {} channels. Padding end with {}".format(num_pts,self.subcarrier_count,options['padding']))
-            pad = np.full((num_pad,),options['padding'])
-            iq_points = np.concatenate((iq_points,pad))
-        packets = np.split(iq_points,iq_points.shape[0]/self.subcarrier_count)
-        pack_list = []
-        subcarriers = np.arange(self.subcarrier_total)*self.subcarrier_spacing
-        #add pilot tones
+        if self.subcarrier_count:
+            mod_val = (len(iq_points)%self.subcarrier_count) #amount of padding required
+            if mod_val is not 0:
+                num_pad = self.subcarrier_count-mod_val
+                print("Warning {} iq points not divisible by {} channels. Padding end with {}".format(num_pts,self.subcarrier_count,options['padding']))
+                pad = np.full((num_pad,),options['padding'])
+                iq_points = np.concatenate((iq_points,pad))
+            packets = np.split(iq_points,iq_points.shape[0]/self.subcarrier_count)
+            pack_list = []
+            subcarriers = np.arange(self.subcarrier_total)*self.subcarrier_spacing
+            #add pilot tones
+        else:
+            packets = [np.array([])]
         packets = self._add_pilot_tones_to_packet_data(packets) #still just list of data at this point
         for p in packets:
             pack_list.append(OFDMPacket([p,subcarriers]))
@@ -111,6 +114,9 @@ class OFDMModem(Modem):
         '''
         if tone_function is None:
             tone_function = lambda idx:complex(1,1)
+        if type(subcarrier_idx)==str:
+            if subcarrier_idx=='all': #then make make everything a pilot tone
+                subcarrier_idx = np.range(self['subcarrier_total'])
         pilot_dict = {idx:tone_function(idx) for idx in subcarrier_idx}
         self['pilot_dict'] = pilot_dict
         
@@ -134,11 +140,17 @@ class OFDMModem(Modem):
         '''
         @brief take our input complex packet data and linearize the channel from it
         @param[in] packet - packet of OFDMPacket type
+        @param[in/OPT] kwargs -keyword args as follows
+            interp_type - type of interpolation to use for scipy.interp1d
         @note interpolation done with mag/phase NOT real/complex
         @note this also assumes the pilots in packet are being matched to those in self['pilot_dict']
         @return a function to correct the packets for the current channel
-            This allows different ofdm frames to be corrected for the same channel
+            This allows different ofdm frames to be corrected for the same channel.
         '''
+        options = {}
+        options['interp_type'] = 'linear'
+        for k,v in kwargs.items():
+            options[k] = v
         pilot_subcarriers = [packet.subcarriers[idx] for idx in self['pilot_dict'].keys()]
         pilot_packet_data = [packet.data[idx] for idx in self['pilot_dict'].keys()] #extract pilot data
         pilot_real_data = [pd for pd in self['pilot_dict'].values()] #extract the correct data
@@ -146,9 +158,9 @@ class OFDMModem(Modem):
         pr_mag,pr_phase = complex2magphase(pilot_real_data) #correct data
         p_mag_norm = pr_mag/pp_mag #normalized correction at each pilot
         p_phase_norm = pr_phase-pp_phase #normalized phase correction
-        mag_interp_fun = interpolate.interp1d(pilot_subcarriers,p_mag_norm,kind='linear',fill_value='extrapolate')
+        mag_interp_fun = interpolate.interp1d(pilot_subcarriers,p_mag_norm,kind=options['interp_type'],fill_value='extrapolate')
         mag_correction = mag_interp_fun(packet.subcarriers)
-        phase_interp_fun = interpolate.interp1d(pilot_subcarriers,p_phase_norm,kind='linear',fill_value='extrapolate')
+        phase_interp_fun = interpolate.interp1d(pilot_subcarriers,p_phase_norm,kind=options['interp_type'],fill_value='extrapolate')
         phase_correction = phase_interp_fun(packet.subcarriers)
         def channel_correct_funct(pack_list,**kwargs):
             '''
@@ -162,11 +174,13 @@ class OFDMModem(Modem):
                 cur_mag,cur_phase = complex2magphase(p.data)
                 cur_mag*=mag_correction
                 cur_phase+=phase_correction
-                p.data = magphase2complex(cur_mag,cur_phase)
-                out_packs.append(p)
+                cur_data = magphase2complex(cur_mag,cur_phase)
+                new_p = copy.deepcopy(p)
+                new_p.data = cur_data
+                out_packs.append(new_p)
             return out_packs
-        return channel_correct_funct
-                
+        return channel_correct_funct,mag_correction,phase_correction,pilot_subcarriers,p_mag_norm,mag_interp_fun
+    
     @property
     def pilot_count(self):
         '''@breif getter for number of pilot tones'''
@@ -351,6 +365,12 @@ class OFDMPacket(ModulatedPacket):
         @brief simply another name for freq_list. This packet should only have subcarriers though
         '''
         return self.freq_list
+    
+class OFDMError(Exception):
+    pass
+
+class OFDMPilotError(OFDMError):
+    pass
         
 if __name__=='__main__':
     
@@ -361,7 +381,7 @@ if __name__=='__main__':
     
     class OFDMTest(unittest.TestCase):
         
-        def test_packetize(self):
+        def atest_packetize(self):
             '''
             @brief test OFDMModem.packetize_iq and OFDMModem.depacketize_iq symmetric property
             '''
@@ -372,10 +392,11 @@ if __name__=='__main__':
             mapped_out = mymodem.depacketize_iq(packs)
             self.assertTrue(np.all(mapped_in==mapped_out))
         
-        def test_encode(self):
+        def atest_encode(self):
             '''
             @brief full test for the following
                 raw_data->QAM mapping->packetization->depacktization->qam demapping->raw_data
+            @note this also tests adding in pilot tones
             '''
             subcarriers = 1666
             channel_spacing = 60e3
@@ -401,19 +422,26 @@ if __name__=='__main__':
             data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
             self.assertTrue(np.all(data_in==data_out))
             
+        def test_all_pilot(self):
+            '''
+            @brief test generating all pilot tones in a packet using mymodem.set_pilot_tones('all')
+            '''
+            pass
+            
     suite = unittest.TestLoader().loadTestsFromTestCase(OFDMTest)
     unittest.TextTestRunner(verbosity=2).run(suite)
     #unittest.main()
     
     out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC_27p5GHz'
-    
+    '''
     subcarriers = 1666
     channel_spacing = 60e3
     qam_M = 64
     num_packs = 6
-    pilot_step = int(subcarriers/8)
+    num_pilots = 833
+    pilot_step = int(subcarriers/num_pilots)
     pilot_idx = np.arange(pilot_step,subcarriers,pilot_step,dtype=np.int32)
-    pilot_funct = lambda idx: complex(20+0j)
+    pilot_funct = lambda idx: complex(3+0j)
     
     mymodem = OFDMModem(qam_M,subcarriers,channel_spacing)
     #mymodem = OFDMModem(256,7,60e3)
@@ -423,20 +451,20 @@ if __name__=='__main__':
     #set our pilot tones
     mymodem.set_pilot_tones(pilot_idx,pilot_funct)
     
-    num_data = mymodem.subcarrier_count*6
-    data = np.random.rand(num_data)
+    num_data = mymodem.subcarrier_count*6*4
+    data = np.random.rand(num_data).astype('float16')
     #data = np.random.rand(9996)
     mapped = mymodem.constellation.map(data)
     packs,mapped_in = mymodem.packetize_iq(mapped)
     
     p = packs[0]
-    corr_fun = mymodem.get_channel_correction_funct_from_pilots(p)
-    corr_pack = corr_fun([p])
+    #corr_fun = mymodem.get_channel_correction_funct_from_pilots(p)
+    #corr_pack = corr_fun([p])
     for i,p in enumerate(packs):
-        p.S[21].freq_list+=27.5e9
+        p.S[21].freq_list+=27.674e9
         out_name = os.path.join(out_dir,'packet_{}.s1p'.format(i))
-        #print(out_name)
-        #p.write(out_name)
+        print(out_name)
+        p.write(out_name)
     #p.plot_iq(mymodem['constellation'])
     packs_out = []
     for p in packs:
@@ -461,7 +489,7 @@ if __name__=='__main__':
     #outsig.plot_baseband()
     #plot_frequency_domain(outsig.baseband_dict['i_oversampled'][0],outsig.times[1]-outsig.times[0])
     #outsig.plot_baseband()
-        
+    '''
         
         
         
