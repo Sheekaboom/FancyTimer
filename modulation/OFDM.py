@@ -183,7 +183,7 @@ class OFDMModem(Modem):
     
     @property
     def pilot_count(self):
-        '''@breif getter for number of pilot tones'''
+        '''@brief getter for number of pilot tones'''
         return len(self['pilot_dict'])
     
     @property
