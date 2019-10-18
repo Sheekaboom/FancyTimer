@@ -29,12 +29,13 @@ class QAMConstellation():
         self._constellation_dict = {} #dictionary containing key/values for binary/RI constellation
         self._generate_qam_constellation() #generate the constellation for M-QAM
         
-    def map(self,data,**arg_options):
+    def map(self,data,return_bitstream=False,**arg_options):
         '''
         @brief map input data to constellation. If the number of bits does
         not fit in the encoding then pad with the value given by padding
         @param[in] data - data to map. currently supports 'uint'
             for raw bitstream use named argument 'bitstream' to True
+        @param[in/OPT] return_bitstream - add an extra return argument and return [locations,bitstream]
         @param[in/OPT] arg_options - optional keyword arguments as follows:
             padding - value to pad bits with if encoding doesnt fit (default 0)
 ;            bitstream - True if the data is a bitstream (array of 1s and 0s) (default False)
@@ -59,6 +60,8 @@ class QAMConstellation():
         for pack in split_bits:
             loc = self._get_location(pack)
             locations.append(loc)
+        if return_bitstream:
+            return np.array(locations),bitstream
         return np.array(locations)
     
     def unmap(self,locations,dtype=None,correct_locations=None,**kwargs):
@@ -74,7 +77,13 @@ class QAMConstellation():
         bitstream = vals.reshape((-1,)).astype('int')
         packed_vals = bytearray(np.packbits(bitstream))
         if dtype is not None:
-            packed_vals = np.frombuffer(packed_vals,dtype=dtype)
+            if dtype=='bitstream': #allow returning of bitstream for ber
+                packed_vals = bitstream
+            else:
+                try:
+                    packed_vals = np.frombuffer(packed_vals,dtype=dtype)
+                except ValueError: #must be a multipl fo dtype error. 
+                    print("Warning: 'ValueError: buffer size must be a multiple of element size' raised. Returning bytearray.")
         return packed_vals,err
     
     def _get_location(self,bits):
@@ -129,8 +138,8 @@ class QAMConstellation():
         @param[in] input_signal - QAMSignal with the ideal IQ locations in data_iq
         @param[in] output_signal - QAMSignal with the decoded IQ locations in data_iq
         '''
-        evm_num = np.abs((correct_values-measured_values)**2).sum()
-        evm_den = np.abs(correct_values**2).sum()
+        evm_num = np.sum(np.abs(correct_values-measured_values)**2)
+        evm_den = np.sum(np.abs(correct_values)**2)
         evm = np.sqrt(evm_num/evm_den)*100
         return evm
     
@@ -200,7 +209,7 @@ class QAMConstellation():
             location_map_dict[v] = k
         return location_map_dict
 
-def generate_qam_position(code_number,num_codes):
+def generate_qam_position(code_number,num_codes,normalize=True):
     '''
     @brief generate a qam position based on a given code number and total number of codes
     This is typically passed to generate_gray_code_mapping()
@@ -209,7 +218,10 @@ def generate_qam_position(code_number,num_codes):
     row_len = round(np.sqrt(num_codes)) #get the length of the side (e.g. 4 for 16 QAM)
     col_len = row_len
     #normalize size from -1 to 1
-    step_size = 1/(((row_len-1)/2))
+    if normalize:
+        step_size = 1/(((row_len-1)/2))
+    else:
+        step_size = 1
     imag_part = (code_number%row_len)*step_size-1
     real_part = (np.floor(code_number/row_len)*step_size)-1
     return complex(real_part,imag_part)
