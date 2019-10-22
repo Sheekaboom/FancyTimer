@@ -23,13 +23,14 @@ def display_time_stats(time_data,name):
     print('{} :'.format(name))
     for k,v in time_data.items():
         print('    {} : {}'.format(k,v))
-    return time_data    
-
-#%% Some other things
+    return time_data   
+ 
 out_file_name = 'python_complex_single_times.json'
 m = 5000; n = 5000
-num_reps = 100
-dtype = np.csingle
+num_reps = 10
+dtype = np.cdouble
+
+#%% Some other things
 np.random.seed(1234)
 a = np.random.rand(m,n)+1j*np.random.rand(m,n)
 b = np.random.rand(m,n)+1j*np.random.rand(m,n)
@@ -176,6 +177,16 @@ ts_double['div'] = display_time_stats(bf_double_complex_time,'Beamform Complex D
 
 #%%
 '''
+FDFD
+'''
+from pycom.beamforming.python_matlab_comparison.FDFD.FDFD_2D import FDFD_2D
+fdfd_fun = lambda: FDFD_2D() 
+[fdfd_double_complex_time,fdfd_double_complex_rv] = fancy_timeit(fdfd_fun,num_reps);
+ts_double['fdfd'] = display_time_stats(fdfd_double_complex_time,'FDFD Complex Double')
+
+
+#%%
+'''
 write to file
 '''
 import json
@@ -316,14 +327,81 @@ comb_fun = lambda : nb_comb(a,b)
 [comb_double_complex_time,comb_double_complex_rv] = fancy_timeit(comb_fun,num_reps);
 ts_double['comb'] = display_time_stats(comb_double_complex_time,'Combined Complex Double')
 
-
 '''
 write to file
 '''
 import json
 with open('nb_'+out_file_name,'w+') as fp:
     json.dump(ts_double,fp,indent=4, sort_keys=True)
-    
+
+#%%   
+'''
+Now use CuPy for gpu computations
+'''
+import cupy as cp
+#%% GPU Data move to GPU
+gpu_move_fun = lambda : [cp.asarray(a),cp.asarray(b)];
+[gpu_move_double_complex_time,gpu_move_double_complex_rv] = fancy_timeit(gpu_move_fun,num_reps);
+ts_double['gpu_move'] = display_time_stats(gpu_move_double_complex_time,'gpu_move Complex Double');
+a_gpu = gpu_move_double_complex_rv[0];
+b_gpu = gpu_move_double_complex_rv[1];
+
+#%% GPU elementwise multiply
+gpu_mult_fun = lambda : a_gpu*b_gpu;
+[gpu_mult_double_complex_time,gpu_mult_double_complex_rv] = fancy_timeit(gpu_mult_fun,num_reps);
+ts_double['gpu_mult'] = display_time_stats(gpu_mult_double_complex_time,'gpu_mult Complex Double');
+
+#%% GPU matmul
+gpu_matmul_fun = lambda: cp.matmul(a_gpu,b_gpu);
+[gpu_matmul_double_complex_time,gpu_matmul_double_complex_rv] = fancy_timeit(gpu_matmul_fun,num_reps);
+ts_double['gpu_matmul'] = display_time_stats(gpu_matmul_double_complex_time,'gpu_matmul Complex Double');
+
+#%% GPU Sum/Exp
+#%sum
+gpu_sum_fun = lambda : cp.sum(a_gpu);
+[gpu_sum_double_complex_time,gpu_sum_double_complex_rv] = fancy_timeit(gpu_sum_fun,num_reps);
+ts_double['gpu_sum'] = display_time_stats(gpu_sum_double_complex_time,'gpu_sum Complex Double');
+#%exp
+gpu_exp_fun = lambda:  cp.exp(a_gpu);
+[gpu_exp_double_complex_time,gpu_exp_double_complex_rv] = fancy_timeit(gpu_exp_fun,num_reps);
+ts_double['gpu_exp'] = display_time_stats(gpu_exp_double_complex_time,'gpu_sum Complex Double');
+
+#%%
+'''
+and now pycuda for GPU computations
+'''
+import pycuda.gpuarray as gpuarray
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+#%% Move data to GPU
+gpu_move_fun = lambda : [gpuarray.to_gpu(a),gpuarray.to_gpu(b)];
+[gpu_move_double_complex_time,gpu_move_double_complex_rv] = fancy_timeit(gpu_move_fun,num_reps);
+ts_double['gpu_move'] = display_time_stats(gpu_move_double_complex_time,'gpu_move Complex Double');
+a_gpu_pc = gpu_move_double_complex_rv[0];
+b_gpu_pc = gpu_move_double_complex_rv[1];
+
+#%% GPU elementwise multiply
+gpu_mult_fun = lambda : a_gpu_pc*b_gpu_pc;
+[gpu_mult_double_complex_time,gpu_mult_double_complex_rv] = fancy_timeit(gpu_mult_fun,num_reps);
+ts_double['gpu_mult'] = display_time_stats(gpu_mult_double_complex_time,'gpu_mult Complex Double');
+
+#%% GPU matmul
+gpu_matmul_fun = lambda: cp.matmul(a_gpu,b_gpu);
+[gpu_matmul_double_complex_time,gpu_matmul_double_complex_rv] = fancy_timeit(gpu_matmul_fun,num_reps);
+ts_double['gpu_matmul'] = display_time_stats(gpu_matmul_double_complex_time,'gpu_matmul Complex Double');
+
+#%% GPU Sum/Exp
+#%sum
+gpu_sum_fun = lambda : cp.sum(a_gpu);
+[gpu_sum_double_complex_time,gpu_sum_double_complex_rv] = fancy_timeit(gpu_sum_fun,num_reps);
+ts_double['gpu_sum'] = display_time_stats(gpu_sum_double_complex_time,'gpu_sum Complex Double');
+#%exp
+gpu_exp_fun = lambda:  cp.exp(a_gpu);
+[gpu_exp_double_complex_time,gpu_exp_double_complex_rv] = fancy_timeit(gpu_exp_fun,num_reps);
+ts_double['gpu_exp'] = display_time_stats(gpu_exp_double_complex_time,'gpu_sum Complex Double');
+
+#%% some useful functions
 def load_json(fname):
     with open(fname) as fp:
         return json.load(fp,object_hook=OrderedDict)

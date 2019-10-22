@@ -6,18 +6,14 @@
 %for a TE mode of propogation                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [rv] = FDFD_2D()
+function [E_tot] = FDFD_2D()
 %-----------------------------------------------%
 %% First lets define some values needed to build%
 %  the grid      (changed by user)              %
 %-----------------------------------------------%
 
-%circ or rect
-shape = 'rect';
-
 %set the resolution of our grid in meters
 dx = 5e-3;dy = 5e-3;
-
 
 %set sizes of things in our domain (in meters)
 cyl_sz_r = 10e-2; %radius of cylinder
@@ -42,8 +38,8 @@ inc_amp = 1; %incident wave amplitude
 
 %calculate our wavelength and wavenumber
 c0      = 2.99792458e8;
-lambda = c0./freq;
-kx     = (2*pi)./lambda;
+lambda = c0/freq;
+kx     = (2*pi)/lambda;
 
 %-----------------------------------------------%
 %% Now lets set up our problem space variables  %
@@ -62,10 +58,8 @@ pml_cells_y = ceil(pml_thickness/dy);
 %total size of our grid total grid
 %just add up all of our pieces
 %*2 by pml and airbuf because one on each side
-cells_x = (cyl_cells_x + ...
-    2*airbuf_cells_x + 2*pml_cells_x);
-cells_y = (cyl_cells_y + ...
-    2*airbuf_cells_y + 2*pml_cells_y);
+cells_x = (cyl_cells_x + 2*airbuf_cells_x + 2*pml_cells_x);
+cells_y = (cyl_cells_y + 2*airbuf_cells_y + 2*pml_cells_y);
 
 %----------------------------------------------------%
 %% We can now begin building our cofficient matrices %
@@ -92,55 +86,30 @@ sigma_my_mat = zeros(cells_x,cells_y);
 
 %now we fill our sigma matrices
 %use a parabolic conductivity
-hxe = (1:pml_cells_x)'.*ones(pml_cells_x,cells_y); %end h value
+hxe = (1:pml_cells_x)'   .*ones(pml_cells_x,cells_y); %end h value
 hxs = (pml_cells_x:-1:1)'.*ones(pml_cells_x,cells_y); %start h value
-hye = (1:pml_cells_y).*ones(cells_x,pml_cells_y);
-hys = (pml_cells_y:-1:1).*ones(cells_x,pml_cells_y);
-sigma_ex_mat(1:pml_cells_x,:) = sig_max.*...
-    (hxs/pml_cells_x).^(n+1);
-sigma_ex_mat(end-pml_cells_x+1:end,:) = (sig_max.*...
-    (hxe/pml_cells_x).^(n+1));
-sigma_ey_mat(:,1:pml_cells_y) = (sig_max.*...
-    (hys/pml_cells_y).^(n+1));
-sigma_ey_mat(:,end-pml_cells_y+1:end) = (sig_max.*...
-    (hye/pml_cells_y).^(n+1));
+hye = (1:pml_cells_y)    .*ones(cells_x,pml_cells_y);
+hys = (pml_cells_y:-1:1) .*ones(cells_x,pml_cells_y);
 
-sigma_mx_mat(1:pml_cells_x,:) = (sig_max.*...
-    ((hxs+.5)/pml_cells_x).^(n+1).*mu0./eps0);
-sigma_mx_mat(end-pml_cells_x+1:end,:) = (sig_max.*...
-    ((hxe+.5)/pml_cells_x).^(n+1).*mu0./eps0);
-sigma_my_mat(:,1:pml_cells_y) = (sig_max.*...
-    ((hys+.5)/pml_cells_y).^(n+1).*mu0./eps0);
-sigma_my_mat(:,end-pml_cells_y+1:end) = (sig_max.*...
-    ((hye+.5)/pml_cells_y).^(n+1).*mu0./eps0);
+sigma_ex_mat(1:pml_cells_x,:) = sig_max.*(hxs/pml_cells_x).^(n+1);
+sigma_ex_mat(end-pml_cells_x+1:end,:) = (sig_max.*(hxe/pml_cells_x).^(n+1));
+sigma_ey_mat(:,1:pml_cells_y) = (sig_max.*(hys/pml_cells_y).^(n+1));
+sigma_ey_mat(:,end-pml_cells_y+1:end) = (sig_max.*(hye/pml_cells_y).^(n+1));
+
+sigma_mx_mat(1:pml_cells_x,:) = (sig_max.*((hxs+.5)/pml_cells_x).^(n+1).*mu0./eps0);
+sigma_mx_mat(end-pml_cells_x+1:end,:) = (sig_max.*((hxe+.5)/pml_cells_x).^(n+1).*mu0./eps0);
+sigma_my_mat(:,1:pml_cells_y) = (sig_max.*((hys+.5)/pml_cells_y).^(n+1).*mu0./eps0);
+sigma_my_mat(:,end-pml_cells_y+1:end) = (sig_max.*((hye+.5)/pml_cells_y).^(n+1).*mu0./eps0);
 %Now we set our geometry values
-%RECTANGULAR
-if(shape=='rect')
-%set the inner cube values
-cyl_x_start = 1+pml_cells_x+airbuf_cells_x;
-cyl_x_end   = cyl_x_start+cyl_cells_x-1;
-cyl_y_start = 1+pml_cells_y+airbuf_cells_y;
-cyl_y_end   = cyl_y_start+cyl_cells_y-1;
-[cyl_x,cyl_y] = meshgrid(cyl_x_start:cyl_x_end,cyl_y_start:cyl_y_end);
-cyl_ind = sub2ind(size(eps_mat),cyl_x,cyl_y);
-end
 
 %CIRCULAR
-if(shape=='circ')
-cells_r = ceil(cyl_sz_r./dx);
+cells_r = ceil(cyl_sz_r/dx);
 %circular middle
 icx = ceil(cells_x/2); %the center of the grid
 icy = ceil(cells_y/2);
-cyl_ind = sub2ind(size(eps_mat),icx,icy);
-for i=1:cells_x
-    for j=1:cells_y
-        if(sqrt((i-icx)^2+(j-icy)^2)<=cells_r)
-            %find our conductor locations
-            cyl_ind = [cyl_ind,sub2ind(size(eps_mat),i,j)];
-        end
-    end
-end
-end
+%meshgrid
+[CY,CX] = meshgrid((1:cells_y),(1:cells_x));
+cyl_ind = sqrt((CX-icx).^2+(CY-icy).^2)<=cells_r;
 
 %first set our inner cylinder values 
 eps_mat(cyl_ind) = eps_cyl.*eps_mat(cyl_ind);
@@ -156,9 +125,9 @@ mu_yx_mat = mu_mat + (sigma_mx_mat/(1i*omega));
 mu_xi_mat = mu_mat;
 mu_yi_mat = mu_mat;
 
-clear sigma_ex_mat sigma_ey_mat
-clear sigma_mx_mat sigma_my_mat
-clear eps_mat mu_mat;
+%clear sigma_ex_mat sigma_ey_mat
+%clear sigma_mx_mat sigma_my_mat
+%clear eps_mat mu_mat;
 %CHECKPOINT: WORKS TO HERE
 
 %----------------------------------------------------%
@@ -174,7 +143,7 @@ Ezi = inc_amp.*exp(-1i.*kx.*x_mesh);
 Hxi = Ezi.*1./eta_x;
 Hyi = Ezi.*1./eta_y;
 
-clear eta_x eta_y
+%clear eta_x eta_y
 
 %CHECKPOINT: WORKS TO HERE
 
@@ -184,13 +153,11 @@ clear eta_x eta_y
 %these will be reshaped to fill our matrix A
 a = 1./(eps_zx_mat.*mu_yx_mat.*omega^2.*dx^2);
 b = zeros(size(a));
-b(2:end,:) = (1./(eps_zx_mat(2:end,:).*...
-    mu_yx_mat(1:end-1,:).*omega^2.*dx^2));
+b(2:end,:) = (1./(eps_zx_mat(2:end,:).*mu_yx_mat(1:end-1,:).*omega^2.*dx^2));
 
 c = 1./(eps_zy_mat.*mu_xy_mat.*omega^2.*dx^2);
 d = zeros(size(c));
-d(:,2:end) = (1./(eps_zy_mat(:,2:end).*...
-    mu_xy_mat(:,1:end-1).*omega^2.*dx^2));
+d(:,2:end) = (1./(eps_zy_mat(:,2:end).*mu_xy_mat(:,1:end-1).*omega^2.*dx^2));
 
 e = 1-(a+b+c+d);
 %have to use 2 to end here for -1 values
@@ -211,8 +178,8 @@ f(2:end,2:end) = ((eps0-eps_zi_mat(2:end,2:end))./...
         .*mu_xi_mat(2:end,1:end-1)).*Hxi(2:end,1:end-1));
 
 %now we can clear all of our intermediate matrices
-clear eps_zx_mat eps_zy_mat eps_zi_mat
-clear mu_xy_mat mu_yx_mat mu_xi_mat mu_yi_mat
+%clear eps_zx_mat eps_zy_mat eps_zi_mat
+%clear mu_xy_mat mu_yx_mat mu_xi_mat mu_yi_mat
 
 %% Setting up our final matrices including the sparse matrix
 %now lets build our final solvable matrices and vectors
@@ -226,7 +193,7 @@ er = reshape(e,[1,(cells_x)*(cells_y)]); %(i,j)
 %these will be y in Ax=y
 fr = reshape(f,[1,(cells_x)*(cells_y)]); %(i,j)
 
-clear a b c d e f
+%clear a b c d e f
 
 %lets declare the size of 1 dimension of our sparse mat
 sparse_n = cells_x*cells_y; 
@@ -249,20 +216,19 @@ sparse_y_idx = [yIdx,yIdx,yIdx,yIdx,yIdx];
 A = sparse(sparse_y_idx,sparse_x_idx,sparse_vals);
 
 %solve for our scatterfield
-x = A\fr';
+x1 = A\fr';
 
 %reshape back into a matrix
-E_scat = reshape(x,[cells_x,cells_y]);
+E_scat = reshape(x1,[cells_x,cells_y]);
 
 %create our total field
 E_tot = E_scat+conj(Ezi);
-rv = 0;
 end
-
+%% plot
 % x = (1:cells_x).*dx;y = (1:cells_y).*dy;
 % [X,Y] = meshgrid((1:cells_x).*dx,(1:cells_y).*dy);
-
-%setfigures;
+% 
+% %setfigures;
 % subplot(2,1,1);
 % surf(x,y,real(Ezi)');
 % title('Incident Field');
@@ -290,8 +256,11 @@ end
 %     val_str = [val_str,'eps',strrep(eps_str,'.','p')];
 %     val_str = [val_str,'_6e9'];
 % end
-% savestr = [val_str,'_',shape];
+% %savestr = [val_str,'_',shape];
 % %saveas(gcf,['figs/',savestr],'png');
+% %end
+
+
 
 
 

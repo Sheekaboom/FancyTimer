@@ -5,7 +5,7 @@
 %out_file_path = './matlab_complex_double_times.json';
 out_file_path = './matlab_complex_single_times.json';
 m = 5000; n = 5000;
-num_reps = 100;
+num_reps = 10;
 rng(1234); %set the seed
 a = rand(m,n)+1i*rand(m,n);
 b = rand(m,n)+1i*rand(m,n);
@@ -120,11 +120,38 @@ ts_double.beamform = display_time_stats(bf_double_complex_time,'Beamformed Compl
 %% FDFD
 addpath(('./beamforming/python_matlab_comparison/FDFD'));
 fdfd_fun = @() FDFD_2D();
-[fdfd_double_complex_time,fdfd_double_complex_rv] = fancy_timer(fdfd_fun,10);
+[fdfd_double_complex_time,fdfd_double_complex_rv] = fancy_timer(fdfd_fun,num_reps);
 ts_double.fdfd = display_time_stats(fdfd_double_complex_time,'FDFD Complex Double');
 
 %% Write all of the data out to a json file
 write_json(ts_double,out_file_path);
+
+%% GPU Data move to GPU
+gpu_move_fun = @() {gpuArray(a),gpuArray(b)};
+[gpu_move_double_complex_time,gpu_move_double_complex_rv] = gpu_fancy_timer(gpu_move_fun,num_reps);
+ts_double.gpu_move = display_time_stats(gpu_move_double_complex_time,'gpu_move Complex Double');
+a_gpu = gpu_move_double_complex_rv{1};
+b_gpu = gpu_move_double_complex_rv{2};
+
+%% GPU elementwise multiply
+gpu_mult_fun = @() a_gpu.*b_gpu;
+[gpu_mult_double_complex_time,gpu_mult_double_complex_rv] = gpu_fancy_timer(gpu_mult_fun,num_reps);
+ts_double.gpu_mult = display_time_stats(gpu_mult_double_complex_time,'gpu_mult Complex Double');
+
+%% GPU matmul
+gpu_matmul_fun = @() a_gpu*b_gpu;
+[gpu_matmul_double_complex_time,gpu_matmul_double_complex_rv] = gpu_fancy_timer(gpu_matmul_fun,num_reps);
+ts_double.gpu_matmul = display_time_stats(gpu_matmul_double_complex_time,'gpu_matmul Complex Double');
+
+%% GPU Sum/Exp
+%sum
+gpu_sum_fun = @() sum(a_gpu);
+[gpu_sum_double_complex_time,gpu_sum_double_complex_rv] = gpu_fancy_timer(gpu_sum_fun,num_reps);
+ts_double.gpu_sum = display_time_stats(gpu_sum_double_complex_time,'gpu_sum Complex Double');
+%exp
+gpu_exp_fun = @() exp(a_gpu);
+[gpu_exp_double_complex_time,gpu_exp_double_complex_rv] = gpu_fancy_timer(gpu_exp_fun,num_reps);
+ts_double.gpu_exp = display_time_stats(gpu_exp_double_complex_time,'gpu_expuiiiiiiikllllllllllllll Complex Double');
 
 %% Timing functions
 function [time_list,rv] = fancy_timer(funct_to_time,num_reps)
@@ -136,6 +163,17 @@ for r=1:num_reps
     tic;
     rv = funct_to_time();
     time_list(r) = toc;
+end
+end
+
+function [time_list,rv] = gpu_fancy_timer(funct_to_time,num_reps)
+% @brief return a list of times from num_reps
+% @param[in] funct_to_time - lambda function to call
+% @param[in] num_reps -how many times to repeat
+time_list = zeros(1,num_reps);
+for r=1:num_reps
+    time_list(r) = gputimeit(funct_to_time); 
+    rv=0;
 end
 end
 
