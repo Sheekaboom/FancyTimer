@@ -44,6 +44,7 @@ class QAMConstellation():
         options = {}
         options['padding'] = 0
         options['bitstream'] = False
+        options['dtype'] = np.csingle
         for key,val in arg_options.items():
             options[key] = val
         data = bytearray(data) #to bytearray
@@ -55,6 +56,8 @@ class QAMConstellation():
             print("Warning bits not divisible by encoding (%d/%d). Padding end with %ds" %(len(bitstream),mlog2,options['padding']))
             extra_bits = round(mlog2-len_mod)
             bitstream = np.append(bitstream,np.full((extra_bits,),options['padding']))
+        if len(bitstream)==0:
+            return np.array([],dtype=options['dtype']) #if we have no data for some reason (like all pilot tones) return empty array
         split_bits = np.split(bitstream,len(bitstream)/mlog2) #split into packets
         locations = []
         for pack in split_bits:
@@ -62,7 +65,7 @@ class QAMConstellation():
             locations.append(loc)
         if return_bitstream:
             return np.array(locations),bitstream
-        return np.array(locations)
+        return np.array(locations,dtype=options['dtype'])
     
     def unmap(self,locations,dtype=None,correct_locations=None,**kwargs):
         '''
@@ -73,6 +76,8 @@ class QAMConstellation():
         @param[in/OPT] correct_locations - correct constellation points if not provided simply assume the closest one
         @return a bytearray of the unmapped values
         '''
+        if len(locations)==0:
+            return np.array([],dtype=dtype),np.nan
         vals,err = self._get_values(locations,correct_locations=correct_locations)
         bitstream = vals.reshape((-1,)).astype('int')
         packed_vals = bytearray(np.packbits(bitstream))
