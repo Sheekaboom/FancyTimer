@@ -10,6 +10,10 @@ This is a test of a least squares aoa estimator. This is going to work as follow
         for each angle in our pruned angles. This will be our basis vectors
     3. Solve the least squares problem:
         now we just have to fit our original data to our basis set using a least squares approximation
+    
+    After some testing I do not believe this will work as expected. Our signals are not orthogonal and therefore
+    cannot be used as a basis so we must fit with L1 normalization to create as sparse an array as possible. Unfortunately
+    this has noisy side effects when calculating this as it cannot be directly calculated.
         
 This code is going to test the above algorithm for the 1D case at a single frequency
 
@@ -34,12 +38,12 @@ Xel,Yel,Zel = np.meshgrid(np.arange(numel[0])*spacing,np.arange(numel[1])*spacin
 pos = np.stack((Xel.flatten(),Yel.flatten(),Zel.flatten()),axis=1) #get our position [x,y,z] list
 
 #%% now lets create some synthetic data
-num_incident_waves = 1 #the number of incident plane waves to generate
+num_incident_waves = 10 #the number of incident plane waves to generate
 mag_range_db = [-80,-40] #range of the magnitudes in db [min,max] #TODO implement
 #mag_range_
 np.random.seed(1234)
 inc_az = (0.5-np.random.rand(num_incident_waves))*90 # restrict from -90 to 90
-inc_az = np.array([27])
+#inc_az = np.array([27])
 inc_el = np.zeros_like(inc_az)
 meas_vals = np.sum(mybf.get_steering_vectors(freq,pos,inc_az,inc_el),axis=0)
 
@@ -60,7 +64,7 @@ for i,ang in enumerate(base_angles): #for each azimuth create an incident plane 
 plt.plot(az,10*np.log10(np.abs(basis.transpose())))
 
 #%% now calculate our least squares fit
-np.lstsq(basis)
+#np.linalg.lstsq(basis)
 
 
 
