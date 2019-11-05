@@ -15,6 +15,7 @@ from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformNumb
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformFortran
 from pycom.beamforming.python_interface.SerialBeamform import SerialBeamformPython
 #from pycom.beamforming.python_interface.MatlabBeamform import SerialBeamformMatlab
+from pycom.beamforming.python_interface.OperationTimer import fancy_timeit
 
 class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to print out a full test
     '''
@@ -43,7 +44,7 @@ class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to prin
                 'NUMBA':SerialBeamformNumba,
                 'FORTRAN':SerialBeamformFortran
                 }
-        self['beamform_class_dict']['MATLAB'] = SerialBeamformMatlab
+        #self['beamform_class_dict']['MATLAB'] = SerialBeamformMatlab
        #self['beamform_class_dict']['PYTHON'] = SerialBeamformPython
         
     def _init_beamform_classes(self):
@@ -164,71 +165,16 @@ class BeamformTest(SamuraiDict): #extending ordereddict nicely allows us to prin
             #if not all_equal:
             print(stat_dict.tostring())
             bf_stat_list.append(stat_dict)   
-        return bf_stat_list
-        
-  
-class FancyTimerStats(SamuraiDict):
-    '''
-    @brief class to hold and manipulate data from fancy_timeit function
-    '''
-    def __init__(self,time_list,*args,**kwargs):
-        '''
-        @brief constructor
-        @param[in] time_list - list of times that were measured for our repeats
-        '''
-        super().__init__(*args,**kwargs)
-        self._calc_stats(time_list)
-        
-    def _calc_stats(self,time_list):
-        '''@brief calculate and store time stats'''
-        time_list = np.array(time_list)
-        self['mean'] = np.mean(time_list)
-        self['stdev']= np.std(time_list)
-        self['count']= len(time_list)
-        self['min']  = np.min(time_list)
-        self['max']  = np.max(time_list)
-        self['range']= np.ptp(time_list)
-        
-    def set_speedup(self,base_fts):
-        '''
-        @brief add speedup statistics to the timer
-        @param[in] base_fts - baseline FancyTimerStats class 
-        '''
-        self['speedup'] = base_fts['mean']/self['mean']
-
-
-fancy_template = '''
-def inner(_it, _timer{init}):
-    {setup}
-    time_list = []
-    for _i in _it:
-        _t0 = _timer()
-        retval = {stmt}
-        _t1 = _timer()
-        time_list.append(_t1-_t0) #append the time to run
-    return time_list, retval
-'''    
-def fancy_timeit(mycallable,num_reps=3):
-    '''
-    @brief easy timeit function that will return the results of a function
-        along with a dictionary of timing statistics
-    @param[in] mycallable - callable statement to time
-    @param[in/OPT] num_reps - number of repeats for timing and statistics
-    '''
-    
-    timeit.template = fancy_template #set the template
-    ft = timeit.Timer(mycallable)
-    tl,rv = ft.timeit(number=num_reps)
-    return FancyTimerStats(tl),rv
-    
-    
+        return bf_stat_list   
     
     
 if __name__ == '__main__':
     bftest = BeamformTest()
     bftest['frequencies'] = [40e9]
-    bftest.test_steering_vectors()
-    #bftest.test_beamformed_values()
+    #bftest.test_steering_vectors()
+    bftest.test_beamformed_values()
+    for v in bftest['beamformed_values_test']:
+        print(v.tostring())
     
     '''
     #timer testing

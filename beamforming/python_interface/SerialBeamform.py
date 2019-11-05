@@ -149,6 +149,11 @@ class SerialBeamformNumba(PythonBeamform):
             #steering_vecs_out[an,:] = vector_exp_complex(np.sum(vector_mult_complex(positions,kvec[an]),axis=-1))
         steering_vecs_out[:,:] = vector_exp_complex(np.matmul(positions,kvec.transpose())).transpose()
     
+    def _get_steering_vectors_no_exp(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
+        kvec = self._get_k_vector_azel(freq,az,el)
+        for an in range(num_azel):
+            steering_vecs_out[an,:] = (np.sum(self.vector_mult_complex(positions,kvec[an]),axis=-1))
+
     def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
         '''
         @brief override to utilize for a python engine
@@ -158,9 +163,23 @@ class SerialBeamformNumba(PythonBeamform):
         sv = np.zeros((num_azel,num_pos),dtype=self.precision_types['complexfloating'])
         for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
-            self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
-            temp_mult = vector_mult_complex(weights,meas_vals[fn],sv)
+            self._get_steering_vectors_no_exp(freqs[fn],positions,az,el,sv,num_pos,num_azel)
+            temp_mult = self.vector_beamform(weights,meas_vals,sv)
             out_vals[fn,:] = np.sum(temp_mult,axis=-1)/num_pos
+            
+    from numba import complex128,complex64
+    @vectorize(['complex128(complex128)'],target='parallel')
+    def vector_exp_complex(vals):
+        return cmath.exp(-1j*vals)
+    
+    @vectorize(['complex128(complex128,complex128)'],target='parallel')
+    def vector_mult_complex(a,b):
+        return a*b
+
+    @vectorize([complex128(complex128,complex128,complex128),
+                complex64 (complex64 ,complex64 ,complex64 )],target='cpu')
+    def vector_beamform(weights,meas_vals,sv_no_exp):
+        return weights*meas_vals*cmath.exp(-1j*sv_no_exp)
     
 
 if __name__=='__main__':
