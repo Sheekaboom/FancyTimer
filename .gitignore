@@ -3,3 +3,5 @@
 #matlab figures or data files
 *.mat
 *.fig
+#json data
+*.json

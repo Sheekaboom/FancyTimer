@@ -154,28 +154,9 @@ gpu_exp_fun = @() exp(a_gpu);
 ts_double.gpu_exp = display_time_stats(gpu_exp_double_complex_time,'gpu_expuiiiiiiikllllllllllllll Complex Double');
 
 %% Timing functions
-function [time_list,rv] = fancy_timer(funct_to_time,num_reps)
-% @brief return a list of times from num_reps
-% @param[in] funct_to_time - lambda function to call
-% @param[in] num_reps -how many times to repeat
-time_list = zeros(1,num_reps);
-for r=1:num_reps
-    tic;
-    rv = funct_to_time();
-    time_list(r) = toc;
-end
-end
 
-function [time_list,rv] = gpu_fancy_timer(funct_to_time,num_reps)
-% @brief return a list of times from num_reps
-% @param[in] funct_to_time - lambda function to call
-% @param[in] num_reps -how many times to repeat
-time_list = zeros(1,num_reps);
-for r=1:num_reps
-    time_list(r) = gputimeit(funct_to_time); 
-    rv=0;
-end
-end
+
+
 
 function [time_struct] = display_time_stats(time_list,name)
 % @brief print out statistics on our times 
