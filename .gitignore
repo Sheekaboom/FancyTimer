@@ -1,2 +1,5 @@
 # compiled python files
 *.pyc
+#matlab figures or data files
+*.mat
+*.fig
