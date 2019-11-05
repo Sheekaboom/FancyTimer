@@ -6,7 +6,11 @@
 %for a TE mode of propogation                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+<<<<<<< HEAD
 function [E_tot] = FDFD_2D()
+=======
+function [] = FDFD_2D()
+>>>>>>> refs/remotes/origin/master
 %-----------------------------------------------%
 %% First lets define some values needed to build%
 %  the grid      (changed by user)              %
