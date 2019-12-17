@@ -1,6 +1,7 @@
 function [kvec] = get_k_vector_azel(freq,az,el)
 %@brief get our k vectors (e.g. kv_x = k*sin(az)*cos(el))
 %@note azel here are in radians
+%@note this assumes boresight is az=0 el=0
 %@param[in] freq - frequency to calcaulte for 
 %@param[in] az - azimuth value to calculate for in radians
 %@param[in] el - elevation value to calculate for in radians
