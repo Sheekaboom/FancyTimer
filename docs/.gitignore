@@ -1,0 +1,3 @@
+#do not include _static and _build
+_static
+_build

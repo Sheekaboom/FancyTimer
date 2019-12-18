@@ -1,7 +1,9 @@
 '''
 @author ajw
 @date 8-24-2019
-@brief superclass to inherit from for fast beamforming classes
+@brief superclass to inherit from for fast beamforming classes  
+@note this is deprecated and superseded by AoaAlgorithm. There is lots of extra crap here that
+   was added and did not need to be for using ctypes. Future implementations will use custom cython wrappers
 '''
 
 import ctypes
