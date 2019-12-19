@@ -30,7 +30,7 @@ import commonmark
 dox_funct_dict = {
     "brief": lambda str: str.strip().strip("brief"),
 	"param": lambda str:  ':param '+' '.join(str.strip().split(' ')[1:]).replace(' -',':'),
-	"example": lambda str: '```'+str.replace('\n','\n|')+'```',
+	"example": lambda str: '```'+str.strip().strip('example')+'```',
 	}
 
 def doxygen2rst(dox_str):
