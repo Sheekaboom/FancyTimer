@@ -36,8 +36,9 @@ class FancyTimerStats(SamuraiDict):
         self['min']  = np.min(time_list)
         self['max']  = np.max(time_list)
         self['range']= np.ptp(time_list)
+        self['raw'] = time_list
         
-    def print():
+    def print(self):
         '''
         @brief print our time data from our Function
         '''
@@ -87,16 +88,18 @@ def inner(_it, _timer{init}):
     time_list = []
     for _i in _it:
         _t0 = _timer()
-        retval = {stmt}
+        #retval = {stmt}
+        {stmt}
         _t1 = _timer()
         time_list.append(_t1-_t0) #append the time to run
-    return time_list, retval
+    return time_list #, retval
 '''    
     
     timeit.template = fancy_template #set the template
     ft = timeit.Timer(stmt=mycallable,**kwargs)
-    tl,rv = ft.timeit(number=num_reps)
-    return FancyTimerStats(tl),rv
+    #tl,rv = ft.timeit(number=num_reps)
+    tl = ft.timeit(number=num_reps)
+    return FancyTimerStats(tl)
 
 def display_time_stats(time_data,name):
     '''
@@ -122,14 +125,21 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
             if not included default to generate np.cdouble random matrix
         timer_funct - function to use for timing. If not included uses fancy_timeit
         dtype - dtype to use for the default arg_gen_funct. should be cdouble or csingle
+        cleanup_funct = function to run on arg_inputs after each dimension iteration
+            must recieve list of args to cleanup
     '''
+    def default_cleanup(arg_list):
+        pass
+    
     options = {}
     options['dtype'] = np.cdouble 
+    options['cleanup_funct'] = default_cleanup
     for k,v in kwargs.items(): #we parse this first to get dtype
         options[k] = v 
     #then we generate the default function
-    def arg_gen_funct(dim): #default matrix generation
-        return (np.random.rand(dim,dim)+1j*np.random.rand(dim,dim)).astype(np.cdouble)
+    def arg_gen_funct(dim,num_args): #default matrix generation
+        return [(np.random.rand(dim,dim)+1j*np.random.rand(dim,dim)).astype(options['dtype'])
+                                                                        for a in range(num_args)]
     #then we parse again
     options['arg_gen_funct'] = arg_gen_funct
     options['timer_funct'] = fancy_timeit
@@ -137,26 +147,26 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
         options[k] = v    
     #now lets get our function names as strings
     #now create our statistics dictionary
-    
     stats = {fn:FancyTimerStatsMatrixSet() for fn in funct_names}
-    ret_vals = {}
+    #ret_vals = {}
     max_num_args = np.max(num_arg_list) #get the maximum number of arguments
     #now loop through each size of our matrix
     for dim in dim_range: #loop through each of
         #first create our random matrices
-        print("Running with matrix of %dx%d:" %(dim,dim))
-        arg_inputs = []
-        for i in range(max_num_args):
-            arg_inputs.append(arg_gen_funct(dim))
+        arg_inputs = options['arg_gen_funct'](dim,max_num_args)
+        print("Running with matrix of {}:".format(np.shape(arg_inputs[0])))
         #now run each function
         for i,funct in enumerate(funct_list):   
             funct_name = funct_names[i]
             num_args = num_arg_list[i]
             print('    %10s :' %(funct_name),end='');
-            [cur_stat,rv] = options['timer_funct'](lambda: funct(*tuple(arg_inputs[:num_args])),num_reps=num_reps)
+            lam_fun = lambda: funct(*tuple(arg_inputs[:num_args]))
+            cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps)
             stats[funct_name]['m_'+str(dim)] = cur_stat
-            ret_vals[funct_name] = rv
+            #ret_vals[funct_name] = rv
             print(' SUCCESS')
+            rv = None #try to clear memory
+        options['cleanup_funct'](arg_inputs) #pass in list of args
     return stats,rv
       
 #%% some testing  

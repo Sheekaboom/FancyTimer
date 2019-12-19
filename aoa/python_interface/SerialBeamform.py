@@ -7,15 +7,16 @@
 import numpy as np
 import os
 
-from pycom.beamforming.python_interface.SpeedBeamform import SpeedBeamform,PythonBeamform
+from pycom.beamforming.python_interface.SpeedBeamform import PythonBeamform,CtypesBeamform
 from pycom.beamforming.python_interface.SpeedBeamform import get_ctypes_pointers
 import ctypes
 wdir = os.path.dirname(os.path.realpath(__file__))
 
+#%%
 ############################################
 ### FORTRAN implementation
 ############################################
-class SerialBeamformFortran(SpeedBeamform):
+class SerialBeamformFortran(CtypesBeamform):
     '''
     @brief superclass for BEAMforming FORTran code
     '''
@@ -31,6 +32,7 @@ class SerialBeamformFortran(SpeedBeamform):
                 'integer':np.int32, #default to int32
                 }
 
+#%%
 ############################################
 ### PYTHON implementation
 ############################################
@@ -47,31 +49,37 @@ class SerialBeamformPython(PythonBeamform):
         @note a class is defined here to set values of self._lib
         '''
         super().__init__()
-        #define 
 
-    def _get_steering_vectors(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
+    def get_steering_vectors(self,freq,positions,az,el,*args,**kwargs):
         '''
         @brief override to utilize for python engine
         '''
-        
-        for i in range(num_azel):
-            kvec = self._get_k_vector_azel(freq,az[i],el[i])
+        num_pos = np.shape(positions)[0]
+        steering_vecs_out = np.ndarray((np.shape(az)[0],num_pos))
+        for i in range(len(az)):
+            kvec = self.get_k_vector_azel(freq,az[i],el[i])
             for p in range(num_pos):
                 steering_vecs_out[i,p] = cmath.exp(sum([-1j*kvec[pxyz]*positions[p,pxyz] for pxyz in range(3)]))
-                
-    def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
+        return steering_vecs_out        
+        
+    def get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,*args,**kwargs):
         '''
         @brief override to utilize for a python engine
         '''
         num_pos = positions.shape[0]
         num_azel = az.shape[0]
+        num_freqs = len(freqs)
+        out_vals = np.ndarray((num_freqs,num_azel))
         sv = np.zeros((num_azel,num_pos),dtype=self.precision_types['complexfloating'])
-        for fn in range(num_freqs):
+        for fn,freq in freqs:
             #print("Running with frequency {}".format(freqs[fn]))
-            self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
+            sv = self.get_steering_vectors(freq,positions,az,el)
+            return
             for an in range(num_azel):
                 out_vals[fn,an] = sum([weights[p]*meas_vals[fn,p]*sv[an,p] for p in range(num_pos)])/num_pos
-
+        return out_vals
+    
+#%%
 ############################################
 ### NUMPY implementation
 ############################################
@@ -86,45 +94,34 @@ class SerialBeamformNumpy(PythonBeamform):
         @note a class is defined here to set values of self._lib
         '''
         super().__init__()
-        #define
 
-    def _get_steering_vectors(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
+    def get_steering_vectors(self,freq,positions,az,el,*args,**kwargs):
         '''
         @brief override to utilize for python engine
         '''       
-        kvec = self._get_k_vector_azel(freq,az,el)
-        steering_vecs_out[:,:] = np.exp(-1j*np.matmul(positions,kvec.transpose())).transpose()
+        kvec = self.get_k_vector_azel(freq,az,el)
+        return np.exp(-1j*np.matmul(positions,kvec.transpose())).transpose()
                 
-    def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
+    def get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,*args,**kwargs):
         '''
         @brief override to utilize for a python engine
         '''
-        num_pos = positions.shape[0]
         num_azel = az.shape[0]
-        sv = np.zeros((num_azel,num_pos),dtype=self.precision_types['complexfloating'])
+        num_freqs = len(freqs)
+        out_vals = np.ndarray((num_freqs,num_azel),dtype=self.precision_types['complexfloating'])
         for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
-            self._get_steering_vectors(freqs[fn],positions,az,el,sv,num_pos,num_azel)
-            out_vals[fn,:] = np.sum(weights*meas_vals[fn]*sv,axis=-1)/num_pos
- 
+            sv = self.get_steering_vectors(freqs[fn],positions,az,el)
+            out_vals[fn,:] = np.sum(weights*meas_vals[fn]*sv,axis=-1)/np.sum(weights)
+        return out_vals
+
+#%%
 from numba import vectorize, complex64,float32
 import cmath           
 ############################################
 ### Numba vector implementation 
 ############################################
 from numba import complex64,complex128,jit
-
-@vectorize([complex64(complex64),complex128(complex128)],target='parallel')
-def vector_exp_complex(vals):
-    return cmath.exp(-1j*vals)
-    
-@vectorize([complex64(complex64,complex64,complex64),complex128(complex128,complex128,complex128)],target='parallel')
-def vector_exp_complex_3x(v1,v2,v3):
-    return cmath.exp(-1j*v1*v2*v3)
-
-@vectorize([complex64(complex64,complex64),complex128(complex128,complex128)],target='parallel')
-def vector_mult_complex(a,b):
-    return a*b
     
 class SerialBeamformNumba(PythonBeamform):
     '''
@@ -137,42 +134,45 @@ class SerialBeamformNumba(PythonBeamform):
         @note a class is defined here to set values of self._lib
         '''
         super().__init__()
-        #define vector operation inputs
 
-    def _get_steering_vectors(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
+    def get_steering_vectors(self,freq,positions,az,el,*args,**kwargs):
         '''
         @brief override to utilize for python engine
         '''       
-        kvec = self._get_k_vector_azel(freq,az,el)
-        #for an in range(num_azel):
-            #steering_vecs_out[an,:] = np.exp(-1j*np.sum((positions*kvec[an]),axis=-1))
-            #steering_vecs_out[an,:] = vector_exp_complex(np.sum(vector_mult_complex(positions,kvec[an]),axis=-1))
-        steering_vecs_out[:,:] = vector_exp_complex(np.matmul(positions,kvec.transpose())).transpose()
+        kvec = self.get_k_vector_azel(freq,az,el)
+        sv = self.vector_exp_complex(np.matmul(positions,kvec.transpose())).transpose()
+        return sv
     
-    def _get_steering_vectors_no_exp(self,freq,positions,az,el,steering_vecs_out,num_pos,num_azel):
-        kvec = self._get_k_vector_azel(freq,az,el)
+    def get_steering_vectors_no_exp(self,freq,positions,az,el,*args,**kwargs):
+        kvec = self.get_k_vector_azel(freq,az,el)
+        num_azel = np.shape(az)[0]
+        steering_vecs_out = np.ndarray((num_azel,np.shape(positions)[0]),dtype=self.precision_types['complexfloating'])
         for an in range(num_azel):
             steering_vecs_out[an,:] = (np.sum(self.vector_mult_complex(positions,kvec[an]),axis=-1))
+        return steering_vecs_out
 
-    def _get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,out_vals,num_freqs,num_pos,num_azel):
+    def get_beamformed_values(self,freqs,positions,weights,meas_vals,az,el,*args,**kwargs):
         '''
         @brief override to utilize for a python engine
         '''
         num_pos = positions.shape[0]
         num_azel = az.shape[0]
-        sv = np.zeros((num_azel,num_pos),dtype=self.precision_types['complexfloating'])
+        num_freqs = len(freqs)
+        out_vals = np.ndarray((num_freqs,num_azel),dtype=self.precision_types['complexfloating'])
         for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
-            self._get_steering_vectors_no_exp(freqs[fn],positions,az,el,sv,num_pos,num_azel)
+            sv = self.get_steering_vectors_no_exp(freqs[fn],positions,az,el)
             temp_mult = self.vector_beamform(weights,meas_vals,sv)
             out_vals[fn,:] = np.sum(temp_mult,axis=-1)/num_pos
-            
-    from numba import complex128,complex64
-    @vectorize(['complex128(complex128)'],target='parallel')
+        return out_vals
+    
+    @vectorize([complex128(complex128),
+                complex64 (complex64 )],target='parallel')
     def vector_exp_complex(vals):
         return cmath.exp(-1j*vals)
     
-    @vectorize(['complex128(complex128,complex128)'],target='parallel')
+    @vectorize([complex128(complex128,complex128),
+                complex64 (complex64 ,complex64 )],target='parallel')
     def vector_mult_complex(a,b):
         return a*b
 
@@ -180,8 +180,9 @@ class SerialBeamformNumba(PythonBeamform):
                 complex64 (complex64 ,complex64 ,complex64 )],target='cpu')
     def vector_beamform(weights,meas_vals,sv_no_exp):
         return weights*meas_vals*cmath.exp(-1j*sv_no_exp)
+            
     
-
+#%%
 if __name__=='__main__':
     from pycom.beamforming.python_interface.SpeedBeamform import SpeedBeamformUnittest
     import unittest
@@ -198,7 +199,8 @@ if __name__=='__main__':
         def set_beamforming_class(self):
             self.beamforming_class = SerialBeamformFortran()
     
-    test_class_list = [NumpyUnittest,NumbaUnittest,FortranUnittest]
+    #test_class_list = [NumpyUnittest,NumbaUnittest,FortranUnittest]
+    test_class_list = [NumpyUnittest,NumbaUnittest]
     tl = unittest.TestLoader()
     suite = unittest.TestSuite([tl.loadTestsFromTestCase(mycls) for mycls in test_class_list])
     unittest.TextTestRunner(verbosity=2).run(suite)
@@ -209,7 +211,7 @@ if __name__=='__main__':
     beamformer_classes = OrderedDict()
     beamformer_classes['NUMPY']    = SerialBeamformNumpy
     beamformer_classes['NUMBA']    = SerialBeamformNumba
-    beamformer_classes['FORTRAN']  = SerialBeamformFortran
+    #beamformer_classes['FORTRAN']  = SerialBeamformFortran
     #beamformer_classes['Python']   = SerialBeamformPython
     beamformers = {k:v() for k,v in beamformer_classes.items()}
     

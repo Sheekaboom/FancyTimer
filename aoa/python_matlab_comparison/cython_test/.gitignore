@@ -1,0 +1,4 @@
+#some cython stuff
+*.lib
+*.exp
+*.build
