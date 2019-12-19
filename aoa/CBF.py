@@ -24,7 +24,7 @@ class CBF(AoaAlgorithm):
         @param[in] az - np.array or single value of azimuthal angles to calculate radians  
         @param[in] el - np.array or single value of elevations radians  
         @param[in] kwargs - keyword args as follows:  
-            weights - list of complex weightings to add to each position (taperings)  
+            - weights - list of complex weightings to add to each position (taperings)  
         '''
         if np.ndim(freqs)<1: freqs = np.array([freqs])
         if np.ndim(el   )<1: el    = np.array([el   ])

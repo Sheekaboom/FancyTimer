@@ -92,7 +92,7 @@ class AoaAlgorithm:
         @param[in] az - np.array of azimuthal angles to calculate radians  
         @param[in] el - np.array of elevations radians  
         @param[in] kwargs - keyword args as follows:  
-            weights - list of complex weightings to add to each position (taperings)  
+            - weights - list of complex weightings to add to each position (taperings)  
         '''
         raise NotImplementedError
     

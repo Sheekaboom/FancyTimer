@@ -5,6 +5,12 @@ Created on Tue Dec 17 08:53:39 2019
 @author: aweis
 """
 
+from pycom.aoa.base.AoaAlgorithm import AoaAlgorithm,TestAoaAlgorithm
+from numba import complex128,complex64
+from numba import vectorize
+import numpy as np
+import cmath
+
 class  Music(AoaAlgorithm):
     '''@brief a class for calculating aoa using MUSIC algorithm'''
     
@@ -18,9 +24,9 @@ class  Music(AoaAlgorithm):
         @param[in] az - list of azimuth angles in radians
         @param[in] el - list of elevation angles in radians
         @param[in/OPT] kwargs - keyword args as follows:
-            number_of_signals - specify the number of signals for music.
+            - number_of_signals - specify the number of signals for music.
                 Otherwise use default
-            subarray_idx - indexes to subarray our positions to give the required 
+            - subarray_idx - indexes to subarray our positions to give the required 
                 number of samples for music. This will auto split if not provided
         '''
         #first we need to generate our default values
