@@ -27,16 +27,31 @@ release = '0.1'
 # -- Docstring Parsing -------------------------------------------------------
 import commonmark
 
-def doxygen2markdown(dox_str):
-    '''@brief take doxygen docstrings and parse to markdown like syntax for formatting'''
-    return dox_str
+dox_funct_dict = {
+    "brief": lambda str: str.strip().strip("brief"),
+	"param": lambda str:  ':param '+' '.join(str.strip().split(' ')[1:]).replace(' -',':'),
+	"example": lambda str: '```'+str.replace('\n','\n|')+'```',
+	}
 
-def docstring(app, what, name, obj, options, lines):
+def doxygen2rst(dox_str):
+    '''@brief take doxygen-like docstrings that are partially rst and make them restructured text'''
+    dox_str = dox_str.strip() #remove any leading or trailing whitespaces
+    dox_lines = dox_str.split('@') #split lines on ampersand
+    rst_str_list = []
+    for dl in dox_lines: #loop through each split line
+        for k in dox_funct_dict.keys(): #look for the key 
+            if dl.startswith(k):
+                dl = dox_funct_dict[k](dl) #format the line 
+        rst_str_list.append(dl) #add the line to the lines
+    return ' \n'.join(rst_str_list)
+
+def docstring(app, what, name, obj, options, lines): #change this to not use markdown
     dox  = '\n'.join(lines)
-    md = doxygen2markdown(dox)
-    ast = commonmark.Parser().parse(md)
-    rst = commonmark.ReStructuredTextRenderer().render(ast)
+    rst = dox
+    #ast = commonmark.Parser().parse(md)
+    #rst = commonmark.ReStructuredTextRenderer().render(ast)
     lines.clear()
+    rst = doxygen2rst(rst)
     for line in rst.splitlines():
         lines.append(line)
 
