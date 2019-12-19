@@ -17,14 +17,14 @@ class CBF(AoaAlgorithm):
     @classmethod
     def calculate(self,freqs,pos,meas_vals,az,el,**kwargs):
         '''
-        @brief calculate and return values o the algorithm for the given input
-        @param[in] freqs - np array of frequencies to calculate at
-        @param[in] pos - xyz positions to perform at
-        @param[in] meas_vals - measured values at each position and frequency of shape (len(freqs),len(pos))
-        @param[in] az - np.array or single value of azimuthal angles to calculate radians
-        @param[in] el - np.array or single value of elevations radians
-        @param[in] kwargs - keyword args as follows:
-            weights - list of complex weightings to add to each position (taperings)
+        @brief calculate and return values o the algorithm for the given input  
+        @param[in] freqs - np array of frequencies to calculate at  
+        @param[in] pos - xyz positions to perform at  
+        @param[in] meas_vals - measured values at each position and frequency of shape (len(freqs),len(pos))  
+        @param[in] az - np.array or single value of azimuthal angles to calculate radians  
+        @param[in] el - np.array or single value of elevations radians  
+        @param[in] kwargs - keyword args as follows:  
+            weights - list of complex weightings to add to each position (taperings)  
         '''
         if np.ndim(freqs)<1: freqs = np.array([freqs])
         if np.ndim(el   )<1: el    = np.array([el   ])
@@ -47,9 +47,9 @@ class CBF(AoaAlgorithm):
     @classmethod
     def get_steering_vectors_no_exp(self,freqs,pos,az,el,**kwargs):
         '''
-        @brief return a set of steering vectors for a list of az/el pairs without doing complex exponential
-        @param[in] freqs - frequencies to calculate for  
-        @param[in] pos - list of xyz positions of points in the array  
+        @brief return a set of steering vectors for a list of az/el pairs without doing complex exponential  
+        @param[in] freqs - frequencies to calculate for    
+        @param[in] pos - list of xyz positions of points in the array    
         @param[in] az - np.array of azimuthal angles in radians  
         @param[in] el - np.array of elevations in radians  
         @return np.ndarray of size (len(freqs),len(az),len(pos))  
@@ -73,9 +73,11 @@ class TestCBF(TestAoaAlgorithm):
             
 if __name__=='__main__':
     mytest = TestCBF()
-    #odf = mytest.plot_1d_calc()
+    odf = mytest.plot_1d_calc()
     tdf = mytest.plot_2d_calc()
-    tdf.write_html('../../docs/2D_CBF_fig.html')
+    
+   # odf.write_html('../docs/aoa/cbf/figs/1D_results.html')
+   # tdf.write_html('../docs/aoa/cbf/figs/2D_results.html')
 #    mycbf = CBF()
 #    az,el = mytest.angles_1d
 #    pos = mytest.positions_1d

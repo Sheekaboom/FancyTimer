@@ -6,19 +6,22 @@
 Welcome to PyCom's documentation!
 =================================
 
+This documentation covers the pycom library (maybe it should be renamed Py5G?) 
+which contains code to implement and test angle of arrival (AoA) and Beamforming type algorithms (may require some samurai code)
+
 .. toctree::
+   aoa/index
    :maxdepth: 2
    :caption: Contents:
    
-This is some code
-==================
-.. automodule:: aoa.base.AoaAlgorithm
-	:members:
-	
-This is a nice plot
-===================
+Dependencies
+--------------
 
-
+- numpy
+- samurai (custom NIST SAMURAI system software)
+- plolty
+- scipy
+- What else ???
 
 Indices and tables
 ==================

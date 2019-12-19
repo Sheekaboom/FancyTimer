@@ -1,8 +1,8 @@
 '''
-@brief some base classes and functions for AoA estimation algorithms
-This will have relatively fast implementation of some things (like steering vectors)
-@author Alec Weiss
-@date  11/2019
+@brief some base classes and functions for AoA estimation algorithms.
+This will have relatively fast implementation of some things (like steering vectors)  
+@author Alec Weiss  
+@date  11/2019  
 '''
 
 import numpy as np
@@ -121,17 +121,17 @@ class AoaAlgorithm:
     def synthesize_data(self,freq,pos,az,el,mag=1,**kwargs):
         '''
         @brief create synthetic data for an array. This will generate synthetic
-            data assuming incident plane waves from az,el angle pairs
-        @param[in] freq - frequency to create data for in hz
-        @param[in] pos - position of elements in meters
-        @param[in] az - azimuth of incident plane wave(s) (radians)
-        @param[in] el - elevation of incident plane wave(s) (radians)
-        @param[in/OPT] mag - magnitude of plane wave in linear (default 1)
-        @param[in/OPT] kwargs - keyword arguments as follows:  
+            data assuming incident plane waves from az,el angle pairs  
+        @param[in] freq - frequency to create data for in hz  
+        @param[in] pos - position of elements in meters  
+        @param[in] az - azimuth of incident plane wave(s) (radians)  
+        @param[in] el - elevation of incident plane wave(s) (radians)  
+        @param[in/OPT] mag - magnitude of plane wave in linear (default 1)  
+        @param[in/OPT] kwargs - keyword arguments as follows:    
             - snr - signal to noise ratio of the signal (default inf (no noise)).
-                    This is in dB compared to 10*log10(mag)
-            - noise_funct - noise function to create noise (default np.random.randn)
-        @return array of synthetic data corresponding to each element in pos. rv[freqs][pos]
+                    This is in dB compared to 10*log10(mag)  
+            - noise_funct - noise function to create noise (default np.random.randn)  
+        @return array of synthetic data corresponding to each element in pos. rv[freqs][pos]  
         '''
         #parse inputs
         options = {}
@@ -161,17 +161,17 @@ import unittest
 class TestAoaAlgorithm(unittest.TestCase):
     '''
     @brief basic unittesting of AoaAlgorithm object. To use this, inherit from
-        this class and override self.set_options to set values in self.options dictionary
-    @note the following keys should be set in the self.options dict:  
-        - aoa_class - angle of arrival algorithm class to test
-        - allowed_error - amount of allowable error in comaprison to other data (default 1e-10)
-        - calculated_data_path - path to data that can be loaded in with np.loadtxt to compare output to
-    @example  
-        from pycom.aoa.base.AoaAlgorithm import TestAoaAlgorithm
-        import MusicAlgorithm #assuming its in this directory
-        TestMusicAlgorithm(TestAoaAlgorithm):
-            def set_options(self):
-                self.aoa_class = MusicAlgorithm
+        this class and override self.set_options to set values in self.options dictionary  
+    @note the following keys should be set in the self.options dict:    
+        - aoa_class - angle of arrival algorithm class to test  
+        - allowed_error - amount of allowable error in comaprison to other data (default 1e-10)  
+        - calculated_data_path - path to data that can be loaded in with np.loadtxt to compare output to  
+    @example   
+        from pycom.aoa.base.AoaAlgorithm import TestAoaAlgorithm  
+        import MusicAlgorithm #assuming its in this directory  
+        TestMusicAlgorithm(TestAoaAlgorithm):  
+            def set_options(self):  
+                self.aoa_class = MusicAlgorithm  
     '''
     
     def __init__(self,*args,**kwargs):
@@ -223,7 +223,7 @@ class TestAoaAlgorithm(unittest.TestCase):
         '''
         @brief test self.options['aoa_class'].caculate against data from 
             self.options['calculated_data_path']. This is only performed if
-            self.options['calculated_data_path'] is not None. Otherwise we pass
+            self.options['calculated_data_path'] is not None. Otherwise we pass  
         '''
         if self.options['calculated_data_path'] is not None:
             data_from_file = np.loadtxt(self.options['calculated_data_path'],dtype=np.cdouble)
