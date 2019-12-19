@@ -27,8 +27,13 @@ release = '0.1'
 # -- Docstring Parsing -------------------------------------------------------
 import commonmark
 
+def doxygen2markdown(dox_str):
+    '''@brief take doxygen docstrings and parse to markdown like syntax for formatting'''
+    return dox_str
+
 def docstring(app, what, name, obj, options, lines):
-    md  = '\n'.join(lines)
+    dox  = '\n'.join(lines)
+    md = doxygen2markdown(dox)
     ast = commonmark.Parser().parse(md)
     rst = commonmark.ReStructuredTextRenderer().render(ast)
     lines.clear()

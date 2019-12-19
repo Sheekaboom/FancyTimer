@@ -45,12 +45,12 @@ class  Music(AoaAlgorithm):
             mcov = np.matmul(np.array(fmv).reshape(-1,1),np.array(fmv).reshape(1,-1))/(len(fmv)-1)
             [lhat,uhat] = scipy.linalg.eig(mcov); #get our eigenvectors from the cov
             order = np.argsort(np.diag(lhat))[::-1]; #sort in ascending order
-            sort_uhat = uhat(:,order); #sort the vectors too
+            sort_uhat = uhat[:,order]; #sort the vectors too
     
-             s_fun = @(azv,elv) exp(1i.*(positions*get_k_vector_azel(freqs(fn),azv,elv)));
-             ms_vals = zeros(1,length(az));
-             for an in range(len(az)):
-                 s = s_fun(az(an),el(an));
-                 s = split_by_col_idx(s,options['subarray_idx']);
-                 ms_vals(i) = 1./np.sum(np.sum(np.abs(s.T*sort_uhat(:,1:end-num_sigs))))**2;
-             out_vals(fn,:) = ms_vals;  
+            s_fun = lambda azv,elv: np.exp(1j*(positions*get_k_vector_azel(freqs(fn),azv,elv)));
+            ms_vals = zeros(1,length(az));
+            for an in range(len(az)):
+                s = s_fun(az(an),el(an));
+                s = split_by_col_idx(s,options['subarray_idx']);
+                ms_vals[i] = 1./np.sum(np.sum(np.abs(s.T*sort_uhat[:,1:end-num_sigs])))**2;
+            out_vals[fn,:] = ms_vals;  
