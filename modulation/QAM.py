@@ -169,9 +169,7 @@ class QAMConstellation():
     
     
     def plot(self,**arg_options):
-        '''
-        @brief plot the constellation points defined in constellation_dict
-        '''
+        '''@brief plot the constellation points defined in constellation_dict'''
         #configure the figure
         fig = plt.figure()
         ax  = plt.axes()
@@ -182,6 +180,14 @@ class QAMConstellation():
             plt.plot(v.real,v.imag,'bo')
             plt.text(v.real,v.imag+0.05,"".join(str(int(x)) for x in k),ha='center')
         return fig
+    
+    def get_modulation_name(self):
+        '''@brief get a guess at the name of the modulation based on M'''
+        name_dict = {
+                2  :  'BPSK',
+                4  :  'QPSK',
+                }
+        return name_dict.get(self.M,str(self.M)+'QAM')
     
     @property
     def codes(self):
@@ -213,6 +219,7 @@ class QAMConstellation():
         for k,v in self._constellation_dict.items():
             location_map_dict[v] = k
         return location_map_dict
+    
 
 def generate_qam_position(code_number,num_codes,normalize=True):
     '''

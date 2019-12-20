@@ -6,9 +6,10 @@ Classes are labeled with numpy style, meethods are labeled with doxygen style
 """
 
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from samurai.base.SamuraiDict import SamuraiDict
-from samurai.base.TouchstoneEditor import SnpEditor
+from samurai.base.TouchstoneEditor import WaveformEditor
 from samurai.base.TouchstoneEditor import DEFAULT_HEADER as DEFAULT_SNP_HEADER
 
 class Modem(SamuraiDict):
@@ -63,77 +64,104 @@ class Modem(SamuraiDict):
             return rv
         except KeyError:
             raise AttributeError("{} is not an attribute or key of {}",name,type(self))
-    
-class ModulatedSignal(SamuraiDict):
-    '''
-    @brief class to provide a template for a modulated signal
-    This is simply a structure to hold all of the data describing the signal
-    '''
-    def __init__(self,data=None,**arg_options):
-        '''
-        @brief constructor to get options (and do other things)
-        @param[in\OPT] data - data to be modulated
-        @param[in/OPT] arg_options - keyword arguments as follows
-            sample_frequency - frequency for sample points
-            carrier_frequency - frequency our qam will be upconverted to upon modulation
-        '''
-        super().__init__()
-        self['sample_frequency']   = 200e9
-        self['carrier_frequency'] = 20e9
-        self['baud_rate']         = 100e6
-        self['packets']           = None
-        self['type']              = None
-        for k,v in arg_options.items():
-            self[k] = v
-        
-        self.times = None #times for rf signal
-        self.data = data
-        self.data_type = type(data)
-        self.baseband_dict = {} #dictionary for i and q
-        self.rf_signal = None
-    
-    @property
-    def bitstream(self):
-        '''
-        @brief get a bitstream of the data
-        '''
-        data_ba = bytearray(self.data)
-        bits = np.unpackbits(data_ba)
-        return bits
 
-    @property
-    def options(self):
+class ModulatedSignalFrame(list):
+    '''
+    @brief a set 'frame' of ModulatedSignal classes  
+    @note the constructor here is the same as a typical list
+        The only difference is self.metadata exists and is written out with self.write  
+    '''
+    def __init__(self,*args,**kwargs):
+        #the metadata is only used for read/write right now
+        self._metadata = SamuraiDict()
+        self._metadata['working_directory'] = '.'
+        super().__init__(*args,**kwargs)
+        
+    def load(self,fpath,**kwargs):
         '''
-        @brief have this to be backward compatable with options dictionary
+        @brief load a signal frame from metadata
+        @param[in] fpath - path to the metadata file
+        @param[in/OPT] kwargs passed to SamuraiDict.load
         '''
-        return self
-    
-    def plot_baseband(self):
-        '''
-        @brief plot all baseband data
-        '''
-        fig = plt.figure()
-        all_baseband = []
-        for key,val in self.baseband_dict.items():
-            plt.plot(self.times,val,label="{} Baseband".format(key))
-            all_baseband.append(val)
+        self._metadata.load(fpath,**kwargs)
+        for fpath in self._metadata['signal_filepaths']: #relative to signal_directory
+            sig_path = os.path.join(self._metadata['working_directory'],fpath)
+            self.append(ModulatedSignal(sig_path)) #load from file
             
-        plt_min = np.min(all_baseband)
-        plt_max = np.max(all_baseband)
-        plt.plot(self.times,self.clock*(plt_max-plt_min)+plt_min)
-        ax = plt.gca()
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Magnitude')
-        ax.legend()
-        return fig
-   
-    def plot_rf(self):
+    def write(self,fpath,**kwargs):
         '''
-        @brief plot the upconverted rf signal
+        @brief write a signal frame and metadata
+        @param[in] fpath - path (without extension) of where
+            to write the metadata file and signals
+        @param[in/OPT] keyword args as follows:  
+            - signal_subdir - subdirectory to write signals to relative to working_directory.
+                        Defaults ('fname_signals/')
         '''
-        plt.figure()
-        plt.plot(self.times,self.rf_signal)
-        return plt.gca()
+        fpath = os.path.splitext(fpath)[0] #remove extension
+        fpath,fname = os.path.split(fpath) #the name of the file
+        self._metadata['signal_filepaths'] = []
+        options = {}
+        options['signal_subdir'] = fname+'_signals'
+        for k,v in kwargs.items():
+            options[k] = v
+        self._metadata['working_directory'] = './' #update the working directory (commonly ./)
+        sig_path = os.path.join(fpath,options['signal_subdir'])
+        if not os.path.exists(sig_path):
+            os.makedirs(sig_path)
+        for i,cur_sig in enumerate(self): #loop through each signal in self
+            sig_name = '{}_{}'.format(fname,i) #create our output name
+            cur_path = os.path.join(sig_path,sig_name)
+            sig_name = cur_sig.write(cur_path) #write out the data
+            self._metadata['signal_filepaths'].append(sig_name) #append path to metadata
+        self._metadata.write(os.path.join(fpath,fname+'.json'))
+        
+    
+class ModulatedSignal(WaveformEditor):
+    '''
+    @brief class to provide a template for a modulated signal  
+    This is simply a structure to hold all of the data describing the signal  
+    '''
+    def __init__(self,*args,**kwargs):
+        '''
+        @brief constructor to get options (and do other things)  
+        @param[in\OPT] data - data to be modulated  
+        @param[in/OPT] arg_options - keyword arguments as follows  
+            - domain - specify whether its frequency or time domain  
+            - all other parameters will be stored in self.metadata 
+            - all kwargs are also passed to TouchstoneEditor  
+        '''
+        if 'default_extension' not in kwargs.keys():
+            kwargs['default_extension'] = 'modsig'
+        self.metadata = SamuraiDict()
+        self.metadata['domain'] = None
+        for k,v in kwargs.items():
+            self.metadata[k] = v
+        super().__init__(*args,**kwargs)
+            
+    def write(self,*args,**kwargs):
+        '''@brief wrap samurai.base.TouchstoneEditor.WaveformEditor.write function
+                to provide writing of self.metadata to comments'''
+        if self.metadata: #if we have metadata
+            self.options['comments'].append('[METADATA] '+self.metadata.dumps(indent=None))
+        return super().write(*args,**kwargs)
+    
+    def load(self,*args,**kwargs):
+        '''@brief wrap samurai.base.TouchstoneEditor.WaveformEditor.load function to provide
+            loading of self.metadata'''
+        rv = super().load(*args,**kwargs)
+        md_str = []
+        for i,com in enumerate(self.options['comments']) :
+            if com.strip().startswith('[METADATA]'):
+                md_str.append(self.options['comments'].pop(i))
+        if len(md_str)==1: #correct amount of metadata
+            md_str = md_str[0]
+            md_str = md_str.strip('[METADATA] ')
+            self.metadata.loads(md_str)
+        elif len(md_str)>1:
+            raise Exception('Too many [METADATA] tags in comments ({})'.format(len(md_str)))
+        else:
+            pass #no metadata
+        return rv
     
     def apply_signal_to_snp_file(self,snp_path,out_path):
         '''
@@ -189,6 +217,13 @@ class ModulatedSignal(SamuraiDict):
         rf_data = np.interp(self.times,stimes,time_sdata)
         self.rf_signal = rf_data
         return self.times,self.rf_signal
+    
+    @property
+    def data(self):
+        return np.squeeze(self.raw)
+    @data.setter
+    def data(self,val):
+        self.raw[:] = val
         
     
 def generate_gray_code_mapping(num_codes,constellation_function):
@@ -278,86 +313,6 @@ def generate_root_raised_cosine(beta,Ts,times):
     #def run_impulse_response()
 
 
-class ModulatedPacket(SnpEditor):
-    '''
-    @brief a class to save a single modulated packet. This could store time or frequency domain data but inherits from SnpEditor
-        Which is technically frequency domain. To do time, simply treat the frequencies as times.
-    '''
-    def __new__(cls,*args,**kwargs):
-        '''
-        @brief override the checking of snp/wnp names
-        '''
-        return super().__new__(cls,*args,override_extension_check=True,**kwargs)
-        
-    def __init__(self,input_file=None,**kwargs):
-        '''
-        @brief constructor class for a packet
-        @param[in] input_file - touchstone file to load in as packet
-            A new packet can be created by passing a list of [[data_list],[freq_list]]
-        @param[in/OPT] kwargs - keywrod arguments passed to SnpEditor init 
-        '''
-        if isinstance(input_file,list): #check if its a list
-            time_freq = input_file[1]; packet_data = input_file[0]
-            super().__init__([1,time_freq],**kwargs) #init empty value
-            self.options['header'] = DEFAULT_SNP_HEADER
-            self.v1.raw = packet_data #set the packet data
-        else: #otherwise its a string or none so just pass to super().__init__
-            super().__init__(input_file,**kwargs)
-        
-    def _gen_dict_keys(self):
-        return [21]
-    
-    def plot_iq(self,constellation):
-        '''
-        @brief plot our iq data on top of a specified QAMConstellation object
-        @param[in] constellation - QAMConstellation object to plot the constellation.
-        @note CURRENTLY ONLY WORKS WITH MATPLOTLIB
-        '''
-        import matplotlib.pyplot as plt
-        constellation.plot()
-        i = self.v1.raw.real
-        q = self.v1.raw.imag
-        plt.plot(i,q)
-        
-    @property
-    def data(self):
-        '''
-        @brief return the complex data because there is only 1 element
-        '''
-        return self.v1.raw
-        
-    @data.setter
-    def data(self,vals):
-        '''
-        @brief setter for complex data
-        '''
-        self.v1.raw = vals
-    
-
-    
-if __name__=='__main__':
-    
-    import matplotlib.pyplot as plt
-    t = np.arange(-10,11,0.1)
-    ts = 1
-    betas = [0.001,0.01,0.1,0.5,0.7,1]
-    fig = plt.figure()
-    for b in betas:
-        h = generate_root_raised_cosine(b,ts,t)
-        plt.plot(t,h,label=r"$\beta={}$".format(b))
-    ax = plt.gca()
-    ax.legend()
-    
-    times = np.arange(0,100,0.1)
-    dirac = np.zeros(times.shape)
-    dirac[int(times.shape[0]/2)] = 1
-    plt.figure()
-    plt.plot(times,dirac)
-    dirac_conv = np.convolve(dirac,h,'same')
-    plt.plot(times,dirac_conv)
-    dirac_conv_conv = np.convolve(dirac_conv,h,'same')
-    plt.plot(times,dirac_conv_conv)  
-
 import scipy.signal
 def lowpass_filter(data,time_step,cutoff_freq,order=5):
         # from https://stackoverflow.com/questions/25191620/creating-lowpass-filter-in-scipy-understanding-methods-and-units
@@ -420,6 +375,39 @@ def idft(data,freqs,times_out):
     times_out = -times_out #change -1j to 1j by dong this
     time_vals = dft(data,freqs,times_out)
     return time_vals
+
+if __name__=='__main__':
+    
+    import os
+    import numpy as np
+    modsig = ModulatedSignal(np.arange(10),np.arange(10)+1j*np.arange(10,20))
+    modsig.metadata['new_data'] = 'this is some new data'
+    modsig.metadata['data_list'] = [1,2,3,4,5]
+    modsig.write('test.modsig')
+    modsig2 = ModulatedSignal('test.modsig')
+    os.remove('test.modsig')
+    
+    
+#    import matplotlib.pyplot as plt
+#    t = np.arange(-10,11,0.1)
+#    ts = 1
+#    betas = [0.001,0.01,0.1,0.5,0.7,1]
+#    fig = plt.figure()
+#    for b in betas:
+#        h = generate_root_raised_cosine(b,ts,t)
+#        plt.plot(t,h,label=r"$\beta={}$".format(b))
+#    ax = plt.gca()
+#    ax.legend()
+#    
+#    times = np.arange(0,100,0.1)
+#    dirac = np.zeros(times.shape)
+#    dirac[int(times.shape[0]/2)] = 1
+#    plt.figure()
+#    plt.plot(times,dirac)
+#    dirac_conv = np.convolve(dirac,h,'same')
+#    plt.plot(times,dirac_conv)
+#    dirac_conv_conv = np.convolve(dirac_conv,h,'same')
+#    plt.plot(times,dirac_conv_conv)  
 
 
 
