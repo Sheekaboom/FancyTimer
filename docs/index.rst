@@ -12,7 +12,12 @@ which contains code to implement and test angle of arrival (AoA) and Beamforming
 .. toctree::
    aoa/index
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Angle of Arrival:
+   
+.. toctree::
+   python_matlab_speed_testing/index
+   :maxdepth: 2
+   :caption: Python/MATLAB Speed Comparison:
    
 Dependencies
 --------------

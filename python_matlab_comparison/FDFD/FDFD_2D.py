@@ -1,24 +1,26 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sat Oct 12 14:53:18 2019
+use_gpu = False #no cupy solve here
 
-@author: aweis
-"""
-import numpy as np
-import scipy.sparse as sparse
-import scipy.sparse.linalg as splinalg
+if use_gpu:
+    import numpy as np
+    import scipy.sparse as sparse
+    import scipy.sparse.linalg as splinalg
+else:
+    import cupy as np
+    import cupy.sparse as sparse
+    import cupy.sparse.linalg as splinalg #DOESNT EXIST CURRENTLY
 
-#
-#   Finite Difference Frequency Domain Solver   #
-#                                               #
-# Written Fall 2017 By Alec Weiss               #
-#               For Intro to Computatinal EM    #
-#for a TE mode of propogation                   #
-#
+
 
 #%% First lets define some values needed to build#
 #  the grid      (changed by user)              #
 def FDFD_2D():
+    '''
+    @brief Finite Difference Frequency Domain Solver for a cylindrical Scatterer.
+    @date Fall 2017
+    @author Alec Weiss
+    '''
+    
 
     #set the resolution of our grid in meters
     dx = 5e-3;dy = 5e-3;
@@ -243,44 +245,48 @@ def FDFD_2D():
     
     #create our total field
     E_tot = E_scat.transpose()+np.conj(Ezi);
-    return E_tot
+    return E_tot,E_scat
     #rv = 0;
     
 
 #%% Plotting
 if __name__=='__main__':
-    FDFD_2D()
-'''
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
-import plotly.io as pio
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+    E_tot,E_scat = FDFD_2D()
 
-xp = np.arange(cells_x)*dx;yp = np.arange(cells_y)*dy;
-[Y,X] = np.meshgrid(xp,yp);
+#import matplotlib.pyplot as plt
+#from mpl_toolkits.mplot3d import Axes3D
+#from matplotlib import cm
+    import plotly.io as pio
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
 
-fig = make_subplots(rows=1,cols=3,
+    cells_x,cells_y = E_scat.shape
+    dx = 5e-3;dy = 5e-3;
+    
+    xp = np.arange(cells_x)*dx;yp = np.arange(cells_y)*dy;
+    [Y,X] = np.meshgrid(xp,yp);
+
+    fig = make_subplots(rows=1,cols=3,
                     specs=[[{'type': 'surface'},{'type': 'surface'},{'type':'scatter'}]],
-                    subplot_titles=("Incident Field","Total Field"))
+                    subplot_titles=("Scattered Field","Total Field"))
 #fig = make_subplots(rows=1,cols=3,
 #                   specs=[[{'type': 'scatter'},{'type': 'scatter'},{'type':'scatter'}]],
 #                    subplot_titles=("Incident Field","Total Field"))
 
 
-Zi = np.abs(E_scat)
-Zt = np.abs(E_tot)
-#fig = go.Figure(data=[go.Surface(z=Zi)])
-#fig.add_trace(go.Surface(z=np.abs(Hyi)),row=1,col=1)
-#fig.add_trace(go.Surface(z=np.abs(Ezi)),row=1,col=2)
-fig.add_trace(go.Surface(z=Zi),row=1,col=1)
-fig.add_trace(go.Surface(z=Zt),row=1,col=2)
-#fig.add_trace(go.Scatter(x=np.arange(len(sparse_vals)),y=sparse_vals.real),row=1,col=1)
-#fig.add_trace(go.Scatter(x=np.arange(len(er)),y=er.real),row=1,col=2)
-fig.add_trace(go.Scatter(x=np.arange(len(fr)),y=fr.flatten().real),row=1,col=3)
-fig.show(renderer='browser')
-'''
+    Zi = np.abs(E_scat)
+    Zt = np.abs(E_tot)
+    #fig = go.Figure(data=[go.Surface(z=Zi)])
+    #fig.add_trace(go.Surface(z=np.abs(Hyi)),row=1,col=1)
+    #fig.add_trace(go.Surface(z=np.abs(Ezi)),row=1,col=2)
+    fig.add_trace(go.Surface(z=Zi),row=1,col=1)
+    fig.add_trace(go.Surface(z=Zt),row=1,col=2)
+    #fig.add_trace(go.Scatter(x=np.arange(len(sparse_vals)),y=sparse_vals.real),row=1,col=1)
+    #fig.add_trace(go.Scatter(x=np.arange(len(er)),y=er.real),row=1,col=2)
+    #fig.add_trace(go.Scatter(x=np.arange(len(fr)),y=fr.flatten().real),row=1,col=3)
+    #fig.write_html('../../docs/python_matlab_speed_testing/figs/FDFD_results.html')
+    fig.show()
+
 '''
 fig = plt.figure()
 ax = fig.add_subplot(121, projection='3d')
