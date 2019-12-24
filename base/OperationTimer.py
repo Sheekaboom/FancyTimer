@@ -154,7 +154,7 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
     for dim in dim_range: #loop through each of
         #first create our random matrices
         arg_inputs = options['arg_gen_funct'](dim,max_num_args)
-        print("Running with matrix of {}:".format(np.shape(arg_inputs[0])))
+        print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
         #now run each function
         for i,funct in enumerate(funct_list):   
             funct_name = funct_names[i]
@@ -174,13 +174,14 @@ if __name__=='__main__':
     
     #%% Test the fancy_timeit_matrix_sweep capability
     #mat_dim_list = 2**np.arange(4,14);
-    mat_dim_list = np.floor(np.logspace(1,4,100)).astype(np.int32)
+    #mat_dim_list = np.floor(np.logspace(1,4,100)).astype(np.int32)
+    mat_dim_list = 2**np.arange(4,11);
     funct_list   = [np.add,np.subtract,np.multiply,np.divide];
     funct_names  = ['add' ,'sub'      ,'mult'     ,'div'    ];
     num_arg_list = [2     ,2          ,2          ,2        ];
-    [py_stats_1,rv] = fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,mat_dim_list,100);
+    [py_stats_1,rv] = fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,mat_dim_list,100,dtype=np.csingle);
     
-    
+    '''
     from scipy.linalg import lu
     funct_list   = [lu  ,np.matmul]
     funct_names  = ['lu','matmul' ]
@@ -190,7 +191,7 @@ if __name__=='__main__':
     #%% write out to matlab
     import scipy.io as sio
     sio.savemat('py_stats.mat',{'py_stats_1':py_stats_1,'py_stats_2':py_stats_2})
-
+    '''
         
         
 

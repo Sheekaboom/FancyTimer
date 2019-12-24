@@ -53,7 +53,8 @@ classdef OperationTimer < handle
             %    arg_gen_funct -function to generate the matrix from a dim value input
             %        if not included default to generate np.cdouble random matrix
             %    timer_funct - function to use for timing. If not included uses fancy_timeit
-            %    dtype - dtype to use for the default arg_gen_funct. should be cdouble or csingle
+            %    dtype - dtype to use for the default arg_gen_funct. should
+            %       be @double or @single
             %    cleanup_funct = function to run on arg_inputs after each dimension iteration
             %        must recieve list of args to cleanup
             p = inputParser();
@@ -67,6 +68,7 @@ classdef OperationTimer < handle
             addParameter(p,'arg_gen_funct',defaultArgGenFunct);
             addParameter(p,'timer_funct',@OperationTimer.fancy_timeit);
             addParameter(p,'cleanup_funct',@(x) 1);
+            addParameter(p,'dtype',@double);
             parse(p,funct_list,funct_names,num_arg_list,dim_range,num_reps,varargin{:});
             
             %ret_vals = struct();
@@ -76,8 +78,13 @@ classdef OperationTimer < handle
             for dn = 1:length(dim_range) %loop through each of the dimensions specified
                 dim = dim_range(dn);
                 %first create our random matrices
-                arg_inputs = p.Results.arg_gen_funct(dim,max_num_args);
-                fprintf(['Running with matrix of :',sprintf('%d,',size(arg_inputs{1})),'\n']);
+                if nargin(p.Results.arg_gen_funct)==3
+                    arg_inputs = p.Results.arg_gen_funct(dim,max_num_args,p.Results.dtype);
+                else
+                    arg_inputs = p.Results.arg_gen_funct(dim,max_num_args);
+                end
+                fprintf(['Running with matrix of :',sprintf('%d,',size(arg_inputs{1}))]);
+                fprintf(' dtype= %s\n',class(arg_inputs{1}));
                 %now run each function
                 for fn=1:length(funct_list)
                     funct = funct_list{fn};
@@ -96,11 +103,11 @@ classdef OperationTimer < handle
             end
         end
             
-        function args = default_arg_gen_funct(dim,num_args)
+        function args = default_arg_gen_funct(dim,num_args,dtype_fun)
             %@brief generate default arguments
             args = {};
             for argn=1:num_args
-                args{end+1} = rand(dim,dim)+1i*rand(dim,dim);
+                args{end+1} = dtype_fun(rand(dim,dim)+1i*rand(dim,dim));
             end
         end
         
