@@ -79,7 +79,7 @@ class OFDMModem(Modem):
         
         self['subcarrier_spacing'] = subcarrier_spacing
         self['subcarrier_total'] = subcarrier_total
-        self['pilot_tone_funct'] = None
+        self['pilot_funct'] = None
 
 #%% frequency domain operations    
     #Note that self.modulate and self.demodulate are part of super
@@ -87,30 +87,35 @@ class OFDMModem(Modem):
     def serial2parallel(self,data,**kwargs):
         '''
         @brief Take serial iq data and parallelize it across our subcarriers
-        @note This will add pilot tones based on the function self['pilot_tone_funct']. 
-            This function should be of the form pilot_tone_funct(empty_packet,packet_num)
+        @note This will add pilot tones based on the function self['pilot_funct']. 
+            This function should be of the form pilot_funct(empty_packet,packet_num)
             where empty_packet is a np.ndarray of length self.subcarrier_total and packet_num
             is which packet we are on (allowing time signal changes). This should then return
             empty_packet with the inserted pilot tones. Pilot tones cannot be the same as the
             variable 'not_set_val' in this function which is complex(123,321).
         @param[in] data - complex modulated iq data to parallelize.
         @param[in/OPT] kwargs - keyword args as follows
-            - pilot_tone_funct - function for the pilot tones to override self['pilot_tone_funct'].
+            - pilot_funct - function for the pilot tones to override self['pilot_funct'].
                 data must be deserialized with this same function
         '''
         options = {} #parse kwargs
-        options['pilot_tone_funct'] = self['pilot_tone_funct']
+        options['pilot_funct'] = self['pilot_funct']
         for k,v in kwargs.items():
             options[k] = v
         #now actually parallelize
         packet_data_list = [] #list of data to go into packets
         not_set_val = complex(123,321) #value indicating a carrier has not been set. Pilot tones cannot be this value
         used_data = 0 #amount of data that has been used
+        open_sc_runaway_count = 0 #count how many times open_sc is 0 to find runaway (bad pilot funct)
         packet_num = 0 #what packet we are on
         while used_data<len(data): #go until weve set all of our data
-            packet_data = np.ones((1,self.subcarrier_total),dtype=np.cdouble)*not_set_val
-            packet_data = options['pilot_tone_funct'](packet_data,packet_num) #add pilot tones
+            packet_data = np.ones((self.subcarrier_total,),dtype=np.cdouble)*not_set_val
+            packet_data = options['pilot_funct'](packet_data,packet_num) #add pilot tones
             open_sc = len(packet_data[packet_data==not_set_val]) #number of open subcarriers
+            if not open_sc: #check for multiple opensc values in a row
+                open_sc_runaway_count += 1
+                if open_sc_runaway_count > 10: #10 0 open packets in a row
+                    raise Exception("Error in parallelization. 10 packets in a row with no room for data. Check pilot_funct")
             if used_data+open_sc >= len(data): #if we dont have enough data
                 padding_data = np.zeros((1,used_data+open_sc-len(data)),dtype=np.cdouble) #pad the packet data
                 data_for_packet = np.concatenate((data[used_data:],padding_data)) #concatenate our data with padded data
@@ -128,12 +133,12 @@ class OFDMModem(Modem):
         @param[in] packet_data_list - list of np.ndarrays containing data from each packet 
             with pilot_tones still included
         @param[in/OPT] kwargs - keyword args as follows:
-            - pilot_tone_funct - function for the pilot tones to override self['pilot_tone_funct']. This needs to be the
+            - pilot_funct - function for the pilot tones to override self['pilot_funct']. This needs to be the
                 same as the function for which tones were added.
         @return list for each packet of: subcarrier pilot tone indices, recieved pilot tone values, expected pilot tone values
         '''
         options = {} #parse kwargs
-        options['pilot_tone_funct'] = self['pilot_tone_funct']
+        options['pilot_funct'] = self['pilot_funct']
         for k,v in kwargs.items():
             options[k] = v
         #now lets get our pilot tones
@@ -145,7 +150,7 @@ class OFDMModem(Modem):
         for packet_num,packet_data in enumerate(packet_data_list): #loop through each packet
             #get where our pilot_tones are for this packet (assume pilot_tones are != not_set_val)
             pilot_finder = np.ones_like(packet_num)*not_set_val #get a known array
-            pilot_finder = options['pilot_tone_funct'](pilot_finder,packet_num)
+            pilot_finder = options['pilot_funct'](pilot_finder,packet_num)
             pilot_tone_idx = packet_data[pilot_finder!=complex(123,321)] #where pilot finder has not been changed is not a pilot tone
             pilot_tone_rx  = packet_data[pilot_tone_idx]    #get the received values
             pilot_tone_exp = pilot_finder[pilot_tone_idx]   #get the expected values
@@ -163,13 +168,13 @@ class OFDMModem(Modem):
         @param[in] packet_data_list - list of np.ndarrays containing data from each packet 
             with pilot_tones still included
         @param[in/OPT] kwargs - keyword args as follows:
-            - pilot_tone_funct - function for the pilot tones to override self['pilot_tone_funct']. This needs to be the
+            - pilot_funct - function for the pilot tones to override self['pilot_funct']. This needs to be the
                 same as the function for which tones were added.
         @note Pilot tones cannot be the same as the variable 'not_set_val' in this function which is complex(123,321).
         @return np.ndarray of complex modulated iq data
         '''
         options = {} #parse kwargs
-        options['pilot_tone_funct'] = self['pilot_tone_funct']
+        options['pilot_funct'] = self['pilot_funct']
         for k,v in kwargs.items():
             options[k] = v
         #now lets remove our pilot tones
@@ -178,12 +183,10 @@ class OFDMModem(Modem):
         for packet_num,packet_data in enumerate(packet_data_list): #loop through each packet
             #get where our pilot_tones are for this packet (assume pilot_tones are != not_set_val)
             pilot_finder = np.ones_like(packet_num)*not_set_val #get a known array
-            pilot_finder = options['pilot_tone_funct'](pilot_finder,packet_num)
+            pilot_finder = options['pilot_funct'](pilot_finder,packet_num)
             #where pilot finder has not been changed is not a pilot tone
             data_out = np.concatenate((data_out,packet_data[pilot_finder==complex(123,321)])) 
         return data_out
-
-        
         
 
 #%% Time domain operations
@@ -524,7 +527,7 @@ class TestOFDMModem(TestModem):
         mydtype = np.float16
         data = np.random.rand(160).astype(mydtype)
         mod_data = mymodem.modulate(data)
-        #par_dat = mymodem.serial2parallel(mod_data,pilot_tone_funct=pilot_funct)
+        #par_dat = mymodem.serial2parallel(mod_data,pilot_funct=pilot_funct)
     
     def atest_packetize(self):
         '''
@@ -616,7 +619,7 @@ if __name__=='__main__':
     mydtype = np.float16
     data = np.random.rand(16).astype(mydtype)
     mod_data = mymodem.modulate(data)
-    #par_dat = mymodem.serial2parallel(mod_data,pilot_tone_funct=pilot_funct)
+    par_dat = mymodem.serial2parallel(mod_data,pilot_funct=pilot_funct)
     '''
     subcarriers = 1666
     channel_spacing = 60e3
