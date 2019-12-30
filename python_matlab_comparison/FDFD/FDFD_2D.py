@@ -14,16 +14,13 @@ else:
 
 #%% First lets define some values needed to build#
 #  the grid      (changed by user)              #
-def FDFD_2D():
+def FDFD_2D(num_cells_x=None,num_cells_y=None):
     '''
     @brief Finite Difference Frequency Domain Solver for a cylindrical Scatterer.
     @date Fall 2017
     @author Alec Weiss
     '''
-    
 
-    #set the resolution of our grid in meters
-    dx = 5e-3;dy = 5e-3;
     #dtype = np.cdouble
     
     #set sizes of things in our domain (in meters)
@@ -32,6 +29,17 @@ def FDFD_2D():
     cyl_sz_y = 10e-2; #size of cylinder in y direction
     air_buffer_sz = 15e-2;#size of surrounding air buffer
     pml_thickness = 10e-2;# size of PML regions
+    
+    #set the number of cells in our grid (for testing vs size)
+    #resolution will automatically be set from this
+    #set the resolution of our grid in meters
+    dx = 5e-3;dy = 5e-3;
+    if num_cells_x is not None:
+        size_x = cyl_sz_x+2*air_buffer_sz+2*pml_thickness
+        dx = size_x/num_cells_x
+    if num_cells_y is not None:
+        size_y = cyl_sz_y+2*air_buffer_sz+2*pml_thickness
+        dy = size_y/num_cells_y
     
     #our permitivities and permeabilities
     #of our cylinder
@@ -251,7 +259,8 @@ def FDFD_2D():
 
 #%% Plotting
 if __name__=='__main__':
-    E_tot,E_scat = FDFD_2D()
+    num_cells = 20
+    E_tot,E_scat = FDFD_2D(num_cells,num_cells)
 
 #import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
@@ -272,7 +281,6 @@ if __name__=='__main__':
 #fig = make_subplots(rows=1,cols=3,
 #                   specs=[[{'type': 'scatter'},{'type': 'scatter'},{'type':'scatter'}]],
 #                    subplot_titles=("Incident Field","Total Field"))
-
 
     Zi = np.abs(E_scat)
     Zt = np.abs(E_tot)

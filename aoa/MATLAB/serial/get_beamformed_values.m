@@ -1,4 +1,4 @@
- function [out_vals] = get_beamformed_values(freqs,positions,weights,meas_vals,az,el)
+function [out_vals] = get_beamformed_values(freqs,positions,weights,meas_vals,az,el)
 %@brief get beamformed values using matlab
 %@param[in] freqs - np array of frequencies to beaform at
 %@param[in] positions - xyz positions to perform at
