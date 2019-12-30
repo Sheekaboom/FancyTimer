@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 use_gpu = False #no cupy solve here
 
-if use_gpu:
+if not use_gpu:
     import numpy as np
     import scipy.sparse as sparse
     import scipy.sparse.linalg as splinalg

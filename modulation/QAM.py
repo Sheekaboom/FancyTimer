@@ -39,7 +39,7 @@ def bitstream2data(bitstream,dtype,**kwargs):
     #find the length of the dtype compared to uint8
     dtype_bytes = len(np.ndarray((1,),dtype=dtype).tobytes())
     if len(bitstream)%(dtype_bytes*8): #if they arent divisible
-        bitstream = bitstream[:-(len(bitstream)%dtype_bytes)] #remove padding
+        bitstream = bitstream[:-(len(bitstream)%(dtype_bytes*8))] #remove some padding
     if dtype=='bitstream' or dtype is None:
         return bitstream 
     else:
