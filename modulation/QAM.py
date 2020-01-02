@@ -9,9 +9,21 @@ import numpy as np
 #from pycom.modulation.Modulation import generate_gray_code_mapping
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import cmath
 import unittest
 import itertools
+
+#%% generic function for to and from complex to mag/phase
+def complex2magphase(data):
+    '''@brief Convert complex data to magnitude and phase'''
+    return np.abs(data),np.angle(data)
+    
+def magphase2complex(mag,phase):
+    '''@brief Convert magnitude and phase data to complex'''
+    real = mag*np.cos(phase)
+    imag = mag*np.sin(phase)
+    return real+1j*imag
 
 #%% map and unmap data to and from bitstream
 def data2bitstream(data,**kwargs):
@@ -310,8 +322,8 @@ class QAMConstellation():
             location_map_dict[v] = k
         return location_map_dict
 
-    def plot(self,**arg_options):
-        '''@brief plot the constellation points defined in constellation_dict'''
+    def plot_mpl(self,**arg_options):
+        '''@brief plot the constellation points defined in constellation_dict with mmatplotlib'''
         #configure the figure
         fig = plt.figure()
         ax  = plt.axes()
@@ -323,8 +335,84 @@ class QAMConstellation():
             plt.text(v.real,v.imag+0.05,"".join(str(int(x)) for x in k),ha='center')
         return fig
     
+    def plot(self,**arg_options):
+        fig = go.Figure()
+        val_names = list(self._constellation_dict.keys())
+        vals = np.array(list(self._constellation_dict.values()))
+        fig.add_trace(go.Scatter(x=vals.real,y=vals.imag,text=val_names,
+                                 mode='markers+text',textposition="bottom center",
+                                 marker=dict(color=1, size=20)))
+        return fig
     
-
+#%% Class for adding false noise to iq data
+class QAMError:
+    '''
+    @brief This is a class to add a variety of errors to QAM signals.
+        Most methods here will be static methods that will simply take in
+        and output an array of iq data points. Errors of various types will be added
+        to these iq points
+    '''
+    
+    @staticmethod
+    def add_magnitude_noise(data,noise_funct):
+        '''
+        @brief Add magnitude errors to IQ data (linear)
+        @param[in] data - np.ndarray of data to add errors to
+        @param[in] noise_funct - function to generate the noise for the data.
+            This function should take in a shape parameter (int or tuple of ints).
+            An example is 'lambda shape: np.random.normal(0,1,shape)'
+        @note All noise values will be added to linear magnitude values
+        @return Data parameter with noise from noise_funct added on.
+        '''
+        mag,phase = complex2magphase(data)
+        mag += noise_funct(data.shape)
+        data_out = magphase2complex(mag, phase)
+        return data_out
+    
+    @staticmethod
+    def add_phase_noise(data,noise_funct):
+        '''
+        @brief Add phase errors to IQ data (radians)
+        @param[in] data - np.ndarray of data to add errors to
+        @param[in] noise_funct - function to generate the noise for the data.
+            This function should take in a shape parameter (int or tuple of ints).
+            An example is 'lambda shape: np.random.normal(0,1,shape)'
+        @note All noise values will be added in radians
+        @return Data parameter with noise from noise_funct added on.
+        '''
+        mag,phase = complex2magphase(data)
+        phase += noise_funct(data.shape)
+        data_out = magphase2complex(mag, phase)
+        return data_out
+    
+    @staticmethod
+    def add_i_noise(data,noise_funct):
+        '''
+        @brief Add noise to in phase (real part) of iq signal 
+        @param[in] data - np.ndarray of data to add errors to
+        @param[in] noise_funct - function to generate the noise for the data.
+            This function should take in a shape parameter (int or tuple of ints).
+            An example is 'lambda shape: np.random.normal(0,1,shape)'
+        @return Data parameter with noise from noise_funct added on.
+        '''
+        data_out = data + noise_funct(data.shape)
+        return data_out
+        
+    @staticmethod
+    def add_q_noise(data,noise_funct):
+        '''
+        @brief Add noise to quadrature (imag part) of iq signal 
+        @param[in] data - np.ndarray of data to add errors to
+        @param[in] noise_funct - function to generate the noise for the data.
+            This function should take in a shape parameter (int or tuple of ints).
+            An example is 'lambda shape: np.random.normal(0,1,shape)'
+        @return Data parameter with noise from noise_funct added on.
+        '''
+        data_out = data + 1j*noise_funct(data.shape)
+        return data_out
+    
+    
+#%% Other functions to use
 def generate_qam_position(code_number,num_codes,normalize=True):
     '''
     @brief generate a qam position based on a given code number and total number of codes
@@ -341,63 +429,6 @@ def generate_qam_position(code_number,num_codes,normalize=True):
     imag_part = (code_number%row_len)*step_size-1
     real_part = (np.floor(code_number/row_len)*step_size)-1
     return complex(real_part,imag_part)
-
-'''
-#these are redefined from MUFResult
-def complex2magphase(data):
-    return np.abs(data),np.angle(data)
-
-def magphase2complex(mag,phase):
-    real = mag*np.cos(phase)
-    imag = mag*np.sin(phase)
-    return real+1j*imag
-'''
-
-class QAMCorrection():
-    '''
-    @brief class to hold and correct IQ data phase/mag
-    '''
-    def __init__(self,magnitude_correction,phase_correction,**arg_options):
-        '''
-        @brief constructor
-        @param[in] magnitude_correction - multiplier value for magnitude correction
-        @param[in] phase_correction - correction for phase in radians
-        '''
-        self.magnitude_correction = magnitude_correction
-        self.phase_correction = phase_correction
-        
-    def correct_iq_data(self,data):
-        '''
-        @brief correct an array of complex iq data with the current mag and phase corrections
-        @param[in] data - numpy array of complex data
-        '''
-        data = self._correct_iq_mag(data)
-        data = self._correct_iq_phase(data)
-        return data
-        
-    def _correct_iq_mag(self,data):
-        '''
-        @brief apply magnitude correction to complex data
-        '''
-        corrected_data = np.zeros_like(data)
-        for i,val in enumerate(data):
-           mag,phase = cmath.polar(val)
-           mag *= self.magnitude_correction
-           adj_iq = cmath.rect(mag,phase)
-           corrected_data[i] = adj_iq
-        return corrected_data
-           
-    def _correct_iq_phase(self,data):
-        '''
-        @brief apply plahse correction to complex data
-        '''
-        corrected_data = np.zeros_like(data)
-        for i,val in enumerate(data):
-           mag,phase = cmath.polar(val)
-           phase += self.phase_correction
-           adj_iq = cmath.rect(mag,phase)
-           corrected_data[i] = adj_iq
-        return corrected_data
 
 class TestQamConstellation(unittest.TestCase):
     '''@brief Unit tests to test our Qam mapping functions'''
@@ -434,6 +465,7 @@ class TestQamConstellation(unittest.TestCase):
 if __name__=='__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestQamConstellation)
     unittest.TextTestRunner(verbosity=2).run(suite)
+     
     #for m in m_vals:
         #const = QAMConstellation(m)
         #const.plot()
@@ -441,8 +473,8 @@ if __name__=='__main__':
     #q = map_qpsk()
     #s = map_16qam()
     #bs = get_permutation_bitstream(3)
-    #myqam = QAMConstellation(64)
-    #myqam.plot()
+    myqam = QAMConstellation(16)
+    fig = myqam.plot()
     
     
     

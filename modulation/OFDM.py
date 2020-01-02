@@ -16,6 +16,50 @@ from pycom.modulation.Modulation import ModulatedSignal, ModulatedSignalFrame
 from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
 from pycom.modulation.Modulation import complex2magphase,magphase2complex
 
+def get_correction_from_pilots(pilot_freqs,meas_pilots,correct_pilots,**kwargs):
+    '''
+    @brief Take in pilot tone data and create a function to correct received data  
+    @param[in] pilot_freqs - frequency list of each of the pilot tones
+    @param[in] meas_pilots - measured pilot tone values at each pilot_freqs
+    @param[in] correct_pilots - correct pilot tone values at each pilot_freqs
+    @param[in/OPT] kwargs -keyword args as follows  
+        - interp_type - type of interpolation to use for scipy.interp1d   
+    @note interpolation done with mag/phase NOT real/complex
+    @note this also assumes the pilots in packet are being matched to those in self['pilot_dict']
+    @return a function to correct the packets for the current channel
+        This allows different ofdm frames to be corrected for the same channel.
+    '''
+    options = {}
+    options['interp_type'] = 'linear'
+    for k,v in kwargs.items():
+        options[k] = v
+    #now lets extract the pilot subcarriers and data
+    pp_mag,pp_phase = complex2magphase(meas_pilots) #recieved data
+    pr_mag,pr_phase = complex2magphase(correct_pilots) #correct data
+    p_mag_norm = pr_mag/pp_mag #normalized correction at each pilot
+    p_phase_norm = pr_phase-pp_phase #normalized phase correction
+    mag_interp_fun = interpolate.interp1d(pilot_freqs,p_mag_norm,kind=options['interp_type'],fill_value='extrapolate')
+    phase_interp_fun = interpolate.interp1d(pilot_freqs,p_phase_norm,kind=options['interp_type'],fill_value='extrapolate')
+    def channel_correct_funct(freqs,data,**kwargs):
+        '''
+        @brief function to correct a list of OFDMSignals to correct
+        @param[in] freqs - frequencies for each data to correct in the packet data
+        @param[in] data - data packet or list of data packets (np.ndarrays)
+        '''
+        out_data = []
+        if np.ndim(data)<=0:
+            data = [data]
+        for d in data:
+            mag_correction = mag_interp_fun(freqs)
+            phase_correction = phase_interp_fun(freqs)
+            cur_mag,cur_phase = complex2magphase(d)
+            cur_mag*=mag_correction
+            cur_phase+=phase_correction
+            new_d = magphase2complex(cur_mag,cur_phase)
+            out_data.append(new_d)
+        return out_data
+    return channel_correct_funct
+
 class OFDMModem(Modem):
     '''
     @brief class to generate OFDM signals in frequency and time domain
@@ -158,12 +202,11 @@ class OFDMModem(Modem):
             pilot_tone_rx  = packet_data[pilot_tone_idx]    #get the received values
             pilot_tone_exp = pilot_finder[pilot_tone_idx]   #get the expected values
             #now append
-            pilot_tone_idx_list.append(pilot_tone_idx)
+            pilot_tone_idx_list.append(pilot_tone_idx[0])
             pilot_tone_recieved_list.append(pilot_tone_rx)
             pilot_tone_expected_list.append(pilot_tone_exp)
 
         return pilot_tone_idx_list, pilot_tone_recieved_list, pilot_tone_expected_list
-
 
     def parallel2serial(self,packet_data_list,**kwargs):
         '''
@@ -498,9 +541,7 @@ class OFDMSignal(ModulatedSignal):
     
     @property
     def subcarriers(self):
-        '''
-        @brief simply another name for freq_list. This packet should only have subcarriers though
-        '''
+        '''@brief simply another name for freq_list. This packet should only have subcarriers though'''
         return self.freq_list
     
     
@@ -523,7 +564,7 @@ class TestOFDMModem(TestModem):
     def test_ser2par_par2ser(self):
         '''@brief Test serial2parallel and parallel2serial with an arbitrary pilot funct'''
         def pilot_funct(data,pack_num):
-            '''@brief every 4th tone is a pilot'''
+            '''@brief every 3rd tone is a pilot'''
             data[::3] = complex(1,1)
             return data
         mymodem = OFDMModem(16,10,60e3)
@@ -624,12 +665,27 @@ if __name__=='__main__':
         return data
     mymodem = OFDMModem(16,10,60e3)
     mydtype = np.float16
-    data = np.random.rand(16).astype(mydtype)
+    data = np.random.rand(160).astype(mydtype)
     mod_data = mymodem.modulate(data)
     par_data = mymodem.serial2parallel(mod_data,pilot_funct=pilot_funct)
     pilot_data = mymodem.get_pilot_tones(par_data,pilot_funct=pilot_funct)
     ser_out  = mymodem.parallel2serial(par_data,pilot_funct=pilot_funct)
     data_out = mymodem.demodulate(ser_out,mydtype)
+    first_packet_pilots = tuple([d[0] for d in pilot_data])
+    corr_fun = get_correction_from_pilots(*first_packet_pilots)
+    
+    from pycom.modulation.QAM import QAMError
+    import plotly.graph_objs as go
+    
+    myerror = QAMError()
+    qam_data = ser_out = ser_out[ser_out!=0]
+    qam_data = myerror.add_phase_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    qam_data = myerror.add_magnitude_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    #qam_data = myerror.add_i_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    #qam_data = myerror.add_q_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    fig = mymodem.options['constellation'].plot()
+    fig.add_trace(go.Scatter(x=qam_data.real, y=qam_data.imag,mode='markers'))
+    
 
     '''
     subcarriers = 1666
