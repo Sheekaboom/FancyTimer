@@ -4,11 +4,12 @@ use_gpu = False #no cupy solve here
 if not use_gpu:
     import numpy as np
     import scipy.sparse as sparse
-    import scipy.sparse.linalg as splinalg
+    from scipy.sparse.linalg import spsolve
 else:
     import cupy as np
-    import cupy.sparse as sparse
-    import cupy.sparse.linalg as splinalg #DOESNT EXIST CURRENTLY
+    import cupyx.scipy.sparse as sparse
+    from cupyx.scipy.sparse.linalg import lsqr
+    spsolve = lambda A,b: lsqr(A,b)[0]
 
 
 
@@ -246,7 +247,8 @@ def FDFD_2D(num_cells_x=None,num_cells_y=None):
     A = sparse.csr_matrix((sparse_vals,(sparse_y_idx,sparse_x_idx)));
     
     #solve for our scatterfield
-    x = splinalg.spsolve(A,fr);
+    x = spsolve(A,fr);
+    #x = splinalg.lsqr(A,fr)[0]
     
     #reshape back into a matrix
     E_scat = np.reshape(x,(cells_y,cells_x));
@@ -259,7 +261,10 @@ def FDFD_2D(num_cells_x=None,num_cells_y=None):
 
 #%% Plotting
 if __name__=='__main__':
-    num_cells = 20
+    num_cells = 100
+    from pycom.base.OperationTimer import fancy_timeit
+    time_stats = fancy_timeit(lambda: FDFD_2D(num_cells,num_cells),num_reps=5)
+    
     E_tot,E_scat = FDFD_2D(num_cells,num_cells)
 
 #import matplotlib.pyplot as plt

@@ -2,7 +2,10 @@
 Timing Code
 ============
 Code was specifically written to provide better statistics on timing for these tests.
-An example to run this code is as follows:
+
+Timing Scripts
+------------------
+An example of scripts to time different functions are given below.
 
 Python
 +++++++++
