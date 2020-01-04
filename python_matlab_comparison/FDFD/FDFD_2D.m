@@ -14,9 +14,11 @@ function [E_tot,E_scat] = FDFD_2D(varargin)
 p = inputParser();
 addOptional(p,'num_cells_x',-1);
 addOptional(p,'num_cells_y',-1);
+addOptional(p,'use_gpu',false);
 parse(p,varargin{:});
 num_cells_x = p.Results.num_cells_x;
 num_cells_y = p.Results.num_cells_y;
+use_gpu = p.Results.use_gpu;
 
 %set sizes of things in our domain (in meters)
 cyl_sz_r = 10e-2; %radius of cylinder
@@ -97,6 +99,15 @@ sigma_ex_mat = zeros(cells_x,cells_y);
 sigma_ey_mat = zeros(cells_x,cells_y);
 sigma_mx_mat = zeros(cells_x,cells_y);
 sigma_my_mat = zeros(cells_x,cells_y);
+
+if use_gpu
+    eps_mat = gpuArray(eps_mat);
+    mu_mat  = gpuArray(mu_mat);
+    sigma_ex_mat = gpuArray(sigma_ex_mat);
+    sigma_ey_mat = gpuArray(sigma_ey_mat);
+    sigma_mx_mat = gpuArray(sigma_mx_mat);
+    sigma_my_mat = gpuArray(sigma_my_mat);
+end
 
 %now we fill our sigma matrices
 %use a parabolic conductivity
