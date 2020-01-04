@@ -11,15 +11,99 @@ import matplotlib.pyplot as plt
 import warnings
 import unittest
 
-from pycom.modulation.Modulation import Modem
+from pycom.modulation.Modulation import Modem,TestModem
 from pycom.modulation.Modulation import ModulatedSignal, ModulatedSignalFrame
 from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
-from pycom.modulation.QAM import QAMConstellation
-from samurai.analysis.support.MUFResult import complex2magphase,magphase2complex
+from pycom.modulation.Modulation import complex2magphase,magphase2complex
+
+def get_correction_from_pilots(pilot_freqs,meas_pilots,correct_pilots,**kwargs):
+    '''
+    @brief Take in pilot tone data and create a function to correct received data  
+    @param[in] pilot_freqs - frequency list of each of the pilot tones
+    @param[in] meas_pilots - measured pilot tone values at each pilot_freqs
+    @param[in] correct_pilots - correct pilot tone values at each pilot_freqs
+    @param[in/OPT] kwargs -keyword args as follows  
+        - interp_type - type of interpolation to use for scipy.interp1d   
+    @note interpolation done with mag/phase NOT real/complex
+    @note this also assumes the pilots in packet are being matched to those in self['pilot_dict']
+    @return a function to correct the packets for the current channel
+        This allows different ofdm frames to be corrected for the same channel.
+    '''
+    options = {}
+    options['interp_type'] = 'linear'
+    for k,v in kwargs.items():
+        options[k] = v
+    #now lets extract the pilot subcarriers and data
+    pp_mag,pp_phase = complex2magphase(meas_pilots) #recieved data
+    pr_mag,pr_phase = complex2magphase(correct_pilots) #correct data
+    p_mag_norm = pr_mag/pp_mag #normalized correction at each pilot
+    p_phase_norm = pr_phase-pp_phase #normalized phase correction
+    mag_interp_fun = interpolate.interp1d(pilot_freqs,p_mag_norm,kind=options['interp_type'],fill_value='extrapolate')
+    phase_interp_fun = interpolate.interp1d(pilot_freqs,p_phase_norm,kind=options['interp_type'],fill_value='extrapolate')
+    def channel_correct_funct(freqs,data,**kwargs):
+        '''
+        @brief function to correct a list of OFDMSignals to correct
+        @param[in] freqs - frequencies for each data to correct in the packet data
+        @param[in] data - data packet or list of data packets (np.ndarrays)
+        '''
+        out_data = []
+        if np.ndim(data)<=0:
+            data = [data]
+        for d in data:
+            mag_correction = mag_interp_fun(freqs)
+            phase_correction = phase_interp_fun(freqs)
+            cur_mag,cur_phase = complex2magphase(d)
+            cur_mag*=mag_correction
+            cur_phase+=phase_correction
+            new_d = magphase2complex(cur_mag,cur_phase)
+            out_data.append(new_d)
+        return out_data
+    return channel_correct_funct
 
 class OFDMModem(Modem):
     '''
     @brief class to generate OFDM signals in frequency and time domain
+        Frequency domain only simulation will be carried out py bypassing the 
+        time domain steps involved. In a sense this still involves the time domain,
+        but does not include any problems that may be caused by time domain effects.
+        This will be produced as a set of multiple frequency domain packets that can
+        be multiplied by a freqeuncy domain channel response. different packets 
+        represent the time axis. This data flow will look as follows:
+            - data input to bitstream
+            - Modulate (from super())
+            - set pilot tones on subcarriers. (part of serial2parallel)
+            - serial2parallel (map to subcarriers)
+            - multiply by frequncy domain channel response
+            - Extract pilot tones
+            - correct from pilot tones
+            - parallel2serial (unmap to modulated stream)
+            - demodulate (from super())
+            
+        Time domain simulation will be performed with a few added steps. In this 
+        case the channel impulse response (CIR) will need to be estimated from
+        the fft if frequency domain channel data is provided. In this case the data flow
+        will look as follows:
+            - data input to bitstream
+            - Modulate (from super())
+            - set pilot tones
+            - serial2parallel (map to subcarriers)
+            - ifft (zero padding to get correct length)
+            - parallel to serial
+            - convolve with time domain CIR
+            - serial to parallel (?)
+            - fft
+            - Extract pilot tones
+            - correct from pilot tones
+            - parallel2serial (unmap from subcarriers to modulated stream)
+            - demodulate (from super())
+        
+    @param[in] M - size of constellation (e.g. 16-QAM, M-QAM)
+    @param[in] subcarrier_total - total number of subcarrier channels
+        self.subcarrier_count removes pilot tone count
+    @param[in] subcarrier_spacing - spacing between subcarriers in Hz
+    @param[in] arg_options - keyword arguments as follows:
+        - cp_length - length of the circular prefix (in ???)
+            parameters passed to Modem Class
     '''
     def __init__(self,M,subcarrier_total,subcarrier_spacing,**arg_options):
         '''
@@ -29,20 +113,129 @@ class OFDMModem(Modem):
             self.subcarrier_count removes pilot tone count
         @param[in] subcarrier_spacing - spacing between subcarriers in Hz
         @param[in] arg_options - keyword arguments as follows:
-            cp_length - length of the circular prefix (in ???)
-            parameters passed to Modem Class
+            - cp_length - length of the circular prefix (in ???)
+                parameters passed to Modem Class
         '''
-        super().__init__(baud_rate=1/subcarrier_spacing) #baud rate must be 1/carrier spacing for OFDM
+        super().__init__(M,baud_rate=1/subcarrier_spacing) #baud rate must be 1/carrier spacing for OFDM
         self['cp_length'] = .2 #default value (fraction of symbol length
         for key,val in arg_options.items():
             self.options[key] = val
         
-        self['constellation'] = QAMConstellation(M,**arg_options)
         self['subcarrier_spacing'] = subcarrier_spacing
         self['subcarrier_total'] = subcarrier_total
-        self['pilot_dict'] = {}
+        self['pilot_funct'] = None
+
+#%% frequency domain operations    
+    #Note that self.modulate and self.demodulate are part of super
+
+    def serial2parallel(self,data,**kwargs):
+        '''
+        @brief Take serial iq data and parallelize it across our subcarriers
+        @note This will add pilot tones based on the function self['pilot_funct']. 
+            This function should be of the form pilot_funct(empty_packet,packet_num)
+            where empty_packet is a np.ndarray of length self.subcarrier_total and packet_num
+            is which packet we are on (allowing time signal changes). This should then return
+            empty_packet with the inserted pilot tones. Pilot tones cannot be the same as the
+            variable 'not_set_val' in this function which is complex(123,321).
+        @param[in] data - complex modulated iq data to parallelize.
+        @param[in/OPT] kwargs - keyword args as follows
+            - pilot_funct - function for the pilot tones to override self['pilot_funct'].
+                data must be deserialized with this same function
+        @return list of np.ndarrays for each packet that has been parallelized
+        '''
+        options = {} #parse kwargs
+        options['pilot_funct'] = self['pilot_funct']
+        for k,v in kwargs.items():
+            options[k] = v
+        #now actually parallelize
+        packet_data_list = [] #list of data to go into packets
+        not_set_val = complex(123,321) #value indicating a carrier has not been set. Pilot tones cannot be this value
+        used_data = 0 #amount of data that has been used
+        open_sc_runaway_count = 0 #count how many times open_sc is 0 to find runaway (bad pilot funct)
+        packet_num = 0 #what packet we are on
+        while used_data<len(data): #go until weve set all of our data
+            packet_data = np.ones((self.subcarrier_total,),dtype=np.cdouble)*not_set_val
+            packet_data = options['pilot_funct'](packet_data,packet_num) #add pilot tones
+            open_sc = len(packet_data[packet_data==not_set_val]) #number of open subcarriers
+            if not open_sc: #check for multiple opensc values in a row
+                open_sc_runaway_count += 1
+                if open_sc_runaway_count > 10: #10 0 open packets in a row
+                    raise Exception("Error in parallelization. 10 packets in a row with no room for data. Check pilot_funct")
+            if used_data+open_sc >= len(data): #if we dont have enough data
+                padding_data = np.zeros((used_data+open_sc-len(data)),dtype=np.cdouble) #pad the packet data
+                data_for_packet = np.concatenate((data[used_data:],padding_data)) #concatenate our data with padded data
+            else: # just use our data
+                data_for_packet = data[used_data:used_data+open_sc]
+            packet_data[packet_data==not_set_val] = data_for_packet #copy data to our packet
+            packet_data_list.append(packet_data) #add our packet data to a list
+            used_data += open_sc
+            packet_num += 1
+        return packet_data_list
+
+    def get_pilot_tones(self,packet_data_list,**kwargs):
+        '''
+        @brief Get the pilot tones for our channel correction from a list of data from packets
+        @param[in] packet_data_list - list of np.ndarrays containing data from each packet 
+            with pilot_tones still included
+        @param[in/OPT] kwargs - keyword args as follows:
+            - pilot_funct - function for the pilot tones to override self['pilot_funct']. This needs to be the
+                same as the function for which tones were added.
+        @note this does not delete the pilot tones from the signal, only gets the values.
+            Deletion is performed in the parallel2serial method.
+        @return list for each packet of: subcarrier pilot tone indices, recieved pilot tone values, expected pilot tone values
+        '''
+        options = {} #parse kwargs
+        options['pilot_funct'] = self['pilot_funct']
+        for k,v in kwargs.items():
+            options[k] = v
+        #now lets get our pilot tones
+        pilot_tone_idx_list      = []
+        pilot_tone_recieved_list = []
+        pilot_tone_expected_list = []
+        not_set_val = complex(123,321) #this is a value that the pilot tones cannot be equal to
+
+        for packet_num,packet_data in enumerate(packet_data_list): #loop through each packet
+            #get where our pilot_tones are for this packet (assume pilot_tones are != not_set_val)
+            pilot_finder = np.ones_like(packet_data)*not_set_val #get a known array
+            pilot_finder = options['pilot_funct'](pilot_finder,packet_num)
+            pilot_tone_idx = np.where(pilot_finder!=complex(123,321)) #where pilot finder has not been changed is not a pilot tone
+            pilot_tone_rx  = packet_data[pilot_tone_idx]    #get the received values
+            pilot_tone_exp = pilot_finder[pilot_tone_idx]   #get the expected values
+            #now append
+            pilot_tone_idx_list.append(pilot_tone_idx[0])
+            pilot_tone_recieved_list.append(pilot_tone_rx)
+            pilot_tone_expected_list.append(pilot_tone_exp)
+
+        return pilot_tone_idx_list, pilot_tone_recieved_list, pilot_tone_expected_list
+
+    def parallel2serial(self,packet_data_list,**kwargs):
+        '''
+        @brief Change parallel data to serial on recieve
+        @param[in] packet_data_list - list of np.ndarrays containing data from each packet 
+            with pilot_tones still included
+        @param[in/OPT] kwargs - keyword args as follows:
+            - pilot_funct - function for the pilot tones to override self['pilot_funct']. This needs to be the
+                same as the function for which tones were added.
+        @note Pilot tones cannot be the same as the variable 'not_set_val' in this function which is complex(123,321).
+        @return np.ndarray of complex modulated iq data
+        '''
+        options = {} #parse kwargs
+        options['pilot_funct'] = self['pilot_funct']
+        for k,v in kwargs.items():
+            options[k] = v
+        #now lets remove our pilot tones
+        data_out = np.ndarray(0,dtype=np.cdouble)
+        not_set_val = complex(123,321) #this is a value that the pilot tones cannot be equal to
+        for packet_num,packet_data in enumerate(packet_data_list): #loop through each packet
+            #get where our pilot_tones are for this packet (assume pilot_tones are != not_set_val)
+            pilot_finder = np.ones_like(packet_data)*not_set_val #get a known array
+            pilot_finder = options['pilot_funct'](pilot_finder,packet_num)
+            #where pilot finder has not been changed is not a pilot tone
+            data_out = np.concatenate((data_out,packet_data[pilot_finder==complex(123,321)])) 
+        return data_out
         
-#%% Time domain operations
+
+#%% Old operations
     
     def generate_ofdm_signal(self,data):
         '''
@@ -240,7 +433,7 @@ class OFDMModem(Modem):
     
 #%% time domain operations
         
-    def modulate(self,data):
+    def modulate_data_time_domain(self,data):
         '''
         @brief take a set of data and generate an OFDM modulated signal from this
         @return a OFDMSignal object containing the data of the signal
@@ -348,9 +541,7 @@ class OFDMSignal(ModulatedSignal):
     
     @property
     def subcarriers(self):
-        '''
-        @brief simply another name for freq_list. This packet should only have subcarriers though
-        '''
+        '''@brief simply another name for freq_list. This packet should only have subcarriers though'''
         return self.freq_list
     
     
@@ -367,9 +558,25 @@ class OFDMPilotWarning(OFDMWarning):
     pass
 
 
-class OFDMTest(unittest.TestCase):
+class TestOFDMModem(TestModem):
+    '''@brief Unittest class for an OFDM Modem class'''
+
+    def test_ser2par_par2ser(self):
+        '''@brief Test serial2parallel and parallel2serial with an arbitrary pilot funct'''
+        def pilot_funct(data,pack_num):
+            '''@brief every 3rd tone is a pilot'''
+            data[::3] = complex(1,1)
+            return data
+        mymodem = OFDMModem(16,10,60e3)
+        mydtype = np.float16
+        data_in  = np.random.rand(160).astype(mydtype)
+        mod_data = mymodem.modulate(data_in)
+        par_data = mymodem.serial2parallel(mod_data,pilot_funct=pilot_funct)
+        ser_out  = mymodem.parallel2serial(par_data,pilot_funct=pilot_funct)
+        data_out = mymodem.demodulate(ser_out,mydtype)
+        self.assertTrue(np.all(data_in==data_out))
     
-    def test_packetize(self):
+    def atest_packetize(self):
         '''
         @brief test OFDMModem.packetize_iq and OFDMModem.depacketize_iq symmetric property
         '''
@@ -380,7 +587,7 @@ class OFDMTest(unittest.TestCase):
         mapped_out = mymodem.depacketize_iq(packs)
         self.assertTrue(np.all(mapped_in==mapped_out))
     
-    def test_encode(self):
+    def atest_encode(self):
         '''
         @brief full test for the following
             raw_data->QAM mapping->packetization->depacktization->qam demapping->raw_data
@@ -410,7 +617,7 @@ class OFDMTest(unittest.TestCase):
         data_out,err = mymodem.constellation.unmap(mapped_out,dtype='float64')
         self.assertTrue(np.all(data_in==data_out))
         
-    def test_all_pilot(self):
+    def atest_all_pilot(self):
         '''
         @brief test generating all pilot tones in a packet using mymodem.set_pilot_tones('all')
         '''
@@ -443,18 +650,47 @@ class OFDMTest(unittest.TestCase):
         
 if __name__=='__main__':
     
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestOFDMModem)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    #unittest.main()
+
     import copy
     import os
     from Modulation import plot_frequency_domain
     import unittest
     
-    suite = unittest.TestLoader().loadTestsFromTestCase(OFDMTest)
-    unittest.TextTestRunner(verbosity=2).run(suite)
-    #unittest.main()
+    def pilot_funct(data,pack_num):
+        '''@brief every 4th tone is a pilot'''
+        data[::4] = complex(1,1)
+        return data
+    mymodem = OFDMModem(16,10,60e3)
+    mydtype = np.float16
+    data = np.random.rand(160).astype(mydtype)
+    mod_data = mymodem.modulate(data)
+    par_data = mymodem.serial2parallel(mod_data,pilot_funct=pilot_funct)
+    pilot_data = mymodem.get_pilot_tones(par_data,pilot_funct=pilot_funct)
+    ser_out  = mymodem.parallel2serial(par_data,pilot_funct=pilot_funct)
+    data_out = mymodem.demodulate(ser_out,mydtype)
+    first_packet_pilots = tuple([d[0] for d in pilot_data])
+    corr_fun = get_correction_from_pilots(*first_packet_pilots)
     
+    from pycom.modulation.QAM import QAMError
+    import plotly.graph_objs as go
+    
+    myerror = QAMError()
+    qam_data = ser_out = ser_out[ser_out!=0]
+    qam_data = myerror.add_phase_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    qam_data = myerror.add_magnitude_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    #qam_data = myerror.add_i_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    #qam_data = myerror.add_q_noise(qam_data,lambda shape: np.random.normal(0,.1,shape))
+    fig = mymodem.options['constellation'].plot()
+    fig.add_trace(go.Scatter(x=qam_data.real, y=qam_data.imag,mode='markers'))
+    
+
+    '''
     subcarriers = 1666
     channel_spacing = 60e3
-    qam_M = 64
+    qam_M = 16
     num_packs = 6
     pilot_step = 1
     pilot_idx = np.arange(pilot_step-1,subcarriers,pilot_step,dtype=np.int32)
@@ -470,6 +706,7 @@ if __name__=='__main__':
     packs,mapped_in = mymodem.packetize_iq(mapped)
     
     out_dir = r'Q:\public\Quimby\Students\Alec\PhD\ofdm_tests\ofdm_packets_64QAM_1666SC_27p5GHz'
+    '''
     '''
     subcarriers = 1666
     channel_spacing = 60e3

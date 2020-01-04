@@ -1,29 +1,45 @@
 # -*- coding: utf-8 -*-
-use_gpu = False #no cupy solve here
 
-if use_gpu:
-    import numpy as np
-    import scipy.sparse as sparse
-    import scipy.sparse.linalg as splinalg
-else:
-    import cupy as np
-    import cupy.sparse as sparse
-    import cupy.sparse.linalg as splinalg #DOESNT EXIST CURRENTLY
+import numpy
+np = numpy
+import scipy.sparse
+from scipy.sparse.linalg import spsolve as scispsolve
 
-
+try:
+    import cupy
+    import cupyx.scipy.sparse
+    from cupyx.scipy.sparse.linalg import culsqr
+except ModuleNotFoundError: #if cupy doesnt exist set it to none
+    cupy = None
+    
 
 #%% First lets define some values needed to build#
 #  the grid      (changed by user)              #
-def FDFD_2D():
+def FDFD_2D(num_cells_x=None,num_cells_y=None,dtype=np.cdouble,use_gpu=False):
     '''
     @brief Finite Difference Frequency Domain Solver for a cylindrical Scatterer.
     @date Fall 2017
     @author Alec Weiss
+    @param[in/OPT] num_cells_x - number of cells to use in the x direction
+    @param[in/OPT] num_cells_y - number of cells to use in the y direction
+    @param[in/OPT] dtype - what dtype to use for our arrays (default cdouble)
+    @param[in/OPT] use_gpu - wheter or not to use the GPU (default false)
     '''
     
-
-    #set the resolution of our grid in meters
-    dx = 5e-3;dy = 5e-3;
+    #%% use the gpu if desired
+    a = 2
+    if use_gpu:
+        if cupy is not None: #then set the libraries accordingly
+            sparse = cupyx.scipy.sparse
+            np = cupy
+            spsolve = lambda A,b: culsqr(A,b)[0]
+        else:
+            raise ModuleNotFoundError("Cupy or Cupyx not imported correctly")
+    else:
+        np = numpy
+        sparse = scipy.sparse
+        spsolve = scispsolve
+        
     #dtype = np.cdouble
     
     #set sizes of things in our domain (in meters)
@@ -32,6 +48,17 @@ def FDFD_2D():
     cyl_sz_y = 10e-2; #size of cylinder in y direction
     air_buffer_sz = 15e-2;#size of surrounding air buffer
     pml_thickness = 10e-2;# size of PML regions
+    
+    #set the number of cells in our grid (for testing vs size)
+    #resolution will automatically be set from this
+    #set the resolution of our grid in meters
+    dx = 5e-3;dy = 5e-3;
+    if num_cells_x is not None:
+        size_x = cyl_sz_x+2*air_buffer_sz+2*pml_thickness
+        dx = size_x/num_cells_x
+    if num_cells_y is not None:
+        size_y = cyl_sz_y+2*air_buffer_sz+2*pml_thickness
+        dy = size_y/num_cells_y
     
     #our permitivities and permeabilities
     #of our cylinder
@@ -83,18 +110,18 @@ def FDFD_2D():
     
     #lets first create matrices from which we create other 
     #values THESE WILL BE CLEARED after usage
-    eps_mat = np.ones((cells_x,cells_y))*eps0;
-    mu_mat  = np.ones((cells_x,cells_y))*mu0;
+    eps_mat = np.ones((cells_x,cells_y),dtype=dtype)*eps0;
+    mu_mat  = np.ones((cells_x,cells_y),dtype=dtype)*mu0;
     
     #initialize these to zeroes so
     #we can multiply to get values easily
     #get our maximum conductivity
     sig_max      = .3; #maximum conductivity
     n            = 2;
-    sigma_ex_mat = np.zeros((cells_x,cells_y));
-    sigma_ey_mat = np.zeros((cells_x,cells_y));
-    sigma_mx_mat = np.zeros((cells_x,cells_y));
-    sigma_my_mat = np.zeros((cells_x,cells_y));
+    sigma_ex_mat = np.zeros((cells_x,cells_y),dtype=dtype);
+    sigma_ey_mat = np.zeros((cells_x,cells_y),dtype=dtype);
+    sigma_mx_mat = np.zeros((cells_x,cells_y),dtype=dtype);
+    sigma_my_mat = np.zeros((cells_x,cells_y),dtype=dtype);
     
     #now we fill our sigma matrices
     #use a parabolic conductivity
@@ -238,7 +265,8 @@ def FDFD_2D():
     A = sparse.csr_matrix((sparse_vals,(sparse_y_idx,sparse_x_idx)));
     
     #solve for our scatterfield
-    x = splinalg.spsolve(A,fr);
+    x = spsolve(A,fr);
+    #x = splinalg.lsqr(A,fr)[0]
     
     #reshape back into a matrix
     E_scat = np.reshape(x,(cells_y,cells_x));
@@ -251,7 +279,11 @@ def FDFD_2D():
 
 #%% Plotting
 if __name__=='__main__':
-    E_tot,E_scat = FDFD_2D()
+    num_cells = 20
+    from pycom.base.OperationTimer import fancy_timeit
+    time_stats = fancy_timeit(lambda: FDFD_2D(num_cells,num_cells),num_reps=3)
+    
+    E_tot,E_scat = FDFD_2D(num_cells,num_cells,np.csingle)
 
 #import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
@@ -272,7 +304,6 @@ if __name__=='__main__':
 #fig = make_subplots(rows=1,cols=3,
 #                   specs=[[{'type': 'scatter'},{'type': 'scatter'},{'type':'scatter'}]],
 #                    subplot_titles=("Incident Field","Total Field"))
-
 
     Zi = np.abs(E_scat)
     Zt = np.abs(E_tot)

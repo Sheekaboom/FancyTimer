@@ -8,39 +8,54 @@ Classes are labeled with numpy style, meethods are labeled with doxygen style
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from samurai.base.SamuraiDict import SamuraiDict
-from samurai.base.TouchstoneEditor import WaveformEditor
-from samurai.base.TouchstoneEditor import DEFAULT_HEADER as DEFAULT_SNP_HEADER
+import unittest
+
+from pycom.modulation.QAM import QAMConstellation
+try:
+    from samurai.base.SamuraiDict import SamuraiDict
+except ModuleNotFoundError:
+    from collections import OrderedDict as SamuraiDict #this is pretty close
+try:
+    from samurai.base.TouchstoneEditor import WaveformEditor
+except ModuleNotFoundError:
+    WaveformEditor = BasicModSig
 
 class Modem(SamuraiDict):
     '''
-    This is a class for describing a modulation scheme. This will be inherited 
-    by other modulation modules as subclasses.
+    @brief constructor to get options (and do other things)
+    @param[in/OPT] arg_options - keyword arguments as follows
+        - sample_frequency - frequency for sample points
+        - carrier_frequency - frequency our qam will be upconverted to upon modulation
    '''
-    def __init__(self,**arg_options):
+    def __init__(self,M,**arg_options):
         '''
         @brief constructor to get options (and do other things)
+        @param[in] M - value specifying the modulation (e.g. M-QAM like 16 or 'BPSK','16QAM')
         @param[in/OPT] arg_options - keyword arguments as follows
             sample_frequency - frequency for sample points
             carrier_frequency - frequency our qam will be upconverted to upon modulation
         '''
         super().__init__()
-        self['sample_frequency']   = 200e9
-        self['carrier_frequency'] = 20e9
-        self['baud_rate']         = 100e6
+        self['constellation'] = QAMConstellation(M,**arg_options)
         for k,v in arg_options.items():
             self[k] = v
-        
    
-    def modulate(self,data):
+    def modulate(self,input_data):
         '''
-        @brief method to overwrite to modulate the data
-        @param[in] data - input data to modulate
+        @brief Map data to an iq constellation.vThis uses self['constellation'] to perform mapping
+        @param[in] input_data - data to map. 
+        @return modulated complex values
         '''
-        raise NotImplementedError("Please implement a 'modulate' method")
+        return self['constellation'].map(input_data)
        
-    def demodulate(self):
-        raise NotImplementedError("Please implmenet a 'demodulate' method")
+    def demodulate(self,iq_data,dtype):
+        '''
+        @brief Unmap data from an iq constellation. this uses the self['constellation'] values
+        @param[in] input_data - data to map. This uses self['constellation'] to perform mapping
+        @return modulated complex values
+        '''
+        data = self['constellation'].unmap(iq_data,dtype)
+        return data[0] #do not return error here (although maybe we should?)
        
     def upconvert(self):
         raise NotImplementedError("Please implmement a 'upconvert' method")
@@ -224,6 +239,14 @@ class ModulatedSignal(WaveformEditor):
     @data.setter
     def data(self,val):
         self.raw[:] = val
+
+class BasicModSig:
+    '''@brief Basic class if WaveformEditor is not available'''
+    def __init__(data,freqs,*args,**kwargs):
+        '''just to self.raw and self.freqs'''
+        self.raw = np.array(data)
+        self.freqs = freqs
+        self.freq_list = freqs
         
     
 def generate_gray_code_mapping(num_codes,constellation_function):
@@ -376,16 +399,45 @@ def idft(data,freqs,times_out):
     time_vals = dft(data,freqs,times_out)
     return time_vals
 
+def complex2magphase(data):
+    return np.abs(data),np.angle(data)
+
+def magphase2complex(mag,phase):
+    real = mag*np.cos(phase)
+    imag = mag*np.sin(phase)
+    return real+1j*imag
+
+class TestModem(unittest.TestCase):
+    '''@some tests for the modem'''
+    def test_mod_demod(self):
+        '''@brief test modulation demodulation of data to qam constellations'''
+        '''@brief test mapping/unmapping to constellations'''
+        m_vals = ['bpsk','qpsk','16qam']
+        bits_per_symbol = [1,2,4]
+        data_len = 1000
+        mydtype = np.float16
+        bytes_per_data = len(np.zeros((1),dtype=mydtype).tobytes())
+        data_in = np.random.rand(data_len).astype(mydtype)
+        for m,bps in zip(m_vals,bits_per_symbol):
+            mymodem = Modem(m)
+            iq_data  = mymodem.modulate(data_in)
+            self.assertEqual(len(iq_data), (bytes_per_data*data_len*8)/bps)#ensure correct length
+            data_out = mymodem.demodulate(iq_data,mydtype)
+            self.assertTrue(np.all(data_in==data_out),msg='Failed on {}'.format(m))
+
 if __name__=='__main__':
     
-    import os
-    import numpy as np
-    modsig = ModulatedSignal(np.arange(10),np.arange(10)+1j*np.arange(10,20))
-    modsig.metadata['new_data'] = 'this is some new data'
-    modsig.metadata['data_list'] = [1,2,3,4,5]
-    modsig.write('test.modsig')
-    modsig2 = ModulatedSignal('test.modsig')
-    os.remove('test.modsig')
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestModem)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+    
+    #import os
+    #import numpy as np
+    #modsig = ModulatedSignal(np.arange(10),np.arange(10)+1j*np.arange(10,20))
+    #modsig.metadata['new_data'] = 'this is some new data'
+    #modsig.metadata['data_list'] = [1,2,3,4,5]
+    #modsig.write('test.modsig')
+    #modsig2 = ModulatedSignal('test.modsig')
+    #os.remove('test.modsig')
     
     
 #    import matplotlib.pyplot as plt

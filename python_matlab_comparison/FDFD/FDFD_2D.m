@@ -6,18 +6,19 @@
 %for a TE mode of propogation                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-<<<<<<< HEAD
-function [E_tot] = FDFD_2D()
-=======
-function [] = FDFD_2D()
->>>>>>> refs/remotes/origin/master
+function [E_tot,E_scat] = FDFD_2D(varargin)
 %-----------------------------------------------%
 %% First lets define some values needed to build%
 %  the grid      (changed by user)              %
 %-----------------------------------------------%
-
-%set the resolution of our grid in meters
-dx = 5e-3;dy = 5e-3;
+p = inputParser();
+addOptional(p,'num_cells_x',-1);
+addOptional(p,'num_cells_y',-1);
+addOptional(p,'use_gpu',false);
+parse(p,varargin{:});
+num_cells_x = p.Results.num_cells_x;
+num_cells_y = p.Results.num_cells_y;
+use_gpu = p.Results.use_gpu;
 
 %set sizes of things in our domain (in meters)
 cyl_sz_r = 10e-2; %radius of cylinder
@@ -25,6 +26,17 @@ cyl_sz_x = 15e-2; %size of cylinder in x direction
 cyl_sz_y = 10e-2; %size of cylinder in y direction
 air_buffer_sz = 15e-2;%size of surrounding air buffer
 pml_thickness = 10e-2;% size of PML regions
+
+%set the resolution of our grid in meters
+dx = 5e-3;dy = 5e-3;
+if num_cells_x > 0
+    size_x = cyl_sz_x+2*air_buffer_sz+2*pml_thickness;
+    dx = size_x/num_cells_x;
+end
+if num_cells_y > 0
+    size_y = cyl_sz_y+2*air_buffer_sz+2*pml_thickness;
+    dy = size_y/num_cells_y;
+end
 
 %our permitivities and permeabilities
 %of our cylinder
@@ -87,6 +99,15 @@ sigma_ex_mat = zeros(cells_x,cells_y);
 sigma_ey_mat = zeros(cells_x,cells_y);
 sigma_mx_mat = zeros(cells_x,cells_y);
 sigma_my_mat = zeros(cells_x,cells_y);
+
+if use_gpu
+    eps_mat = gpuArray(eps_mat);
+    mu_mat  = gpuArray(mu_mat);
+    sigma_ex_mat = gpuArray(sigma_ex_mat);
+    sigma_ey_mat = gpuArray(sigma_ey_mat);
+    sigma_mx_mat = gpuArray(sigma_mx_mat);
+    sigma_my_mat = gpuArray(sigma_my_mat);
+end
 
 %now we fill our sigma matrices
 %use a parabolic conductivity
@@ -228,41 +249,28 @@ E_scat = reshape(x1,[cells_x,cells_y]);
 %create our total field
 E_tot = E_scat+conj(Ezi);
 end
-%% plot
-% x = (1:cells_x).*dx;y = (1:cells_y).*dy;
-% [X,Y] = meshgrid((1:cells_x).*dx,(1:cells_y).*dy);
-% 
-% %setfigures;
-% subplot(2,1,1);
-% surf(x,y,real(Ezi)');
-% title('Incident Field');
-% xlabel('x (cm)');
-% ylabel('y (cm)');
-% shading interp;
-% subplot(2,1,2);
-% surf(x,y,abs(E_tot)');
-% title('Total Field Magnitude');
-% xlabel('x (cm)');
-% ylabel('y (cm)');
-% shading interp;
-% 
-% screen_size = get(0,'Screensize');
-% fig_size = screen_size;
-% fig_size(3) = fig_size(3)/2;
-% set(gcf,'Position',fig_size);
-% view([0,90]);
-% if(eps_cyl>1e2) %pec
-%     val_str = 'PEC';
-% else
-%     eps_str = num2str(eps_cyl);
-%     mu_str  = num2str(mu_cyl);
-%     val_str = ['mu',strrep(mu_str,'.','p'),'_'];
-%     val_str = [val_str,'eps',strrep(eps_str,'.','p')];
-%     val_str = [val_str,'_6e9'];
-% end
-% %savestr = [val_str,'_',shape];
-% %saveas(gcf,['figs/',savestr],'png');
-% %end
+
+
+%% calculate and  plot
+%{
+
+%calculate
+num_cells = 130;
+[E_tot,E_scat] = FDFD_2D(num_cells,num_cells);
+
+%then plot
+subplot(2,1,1);
+surf(abs(E_scat)');
+title('Scattered Field');
+view([0,90]);
+shading interp;
+subplot(2,1,2);
+surf(abs(E_tot)');
+title('Total Field Magnitude');
+view([0,90]);
+shading interp;
+
+%}
 
 
 

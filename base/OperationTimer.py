@@ -77,10 +77,10 @@ class FancyTimerStatsMatrixSet(FancyTimerStatsSet):
 
 def fancy_timeit(mycallable,num_reps=3,**kwargs):
     '''
-    @brief easy timeit function that will return the results of a function
-        along with a dictionary of timing statistics
+    @brief easy timeit function that will return a dictionary of timing statistics
     @param[in] mycallable - callable statement to time
     @param[in/OPT] num_reps - number of repeats for timing and statistics
+    @return A FancyTimerStats object of timing statistics of mycallable
     '''
     fancy_template = '''
 def inner(_it, _timer{init}):
@@ -139,7 +139,7 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
         options[k] = v 
     #then we generate the default function
     def arg_gen_funct(dim,num_args): #default matrix generation
-        return [(np.random.rand(dim,dim)+1j*np.random.rand(dim,dim)).astype(options['dtype'])
+        return [options['dtype'](np.random.rand(dim,dim)+1j*np.random.rand(dim,dim))
                                                                         for a in range(num_args)]
     #then we parse again
     options['arg_gen_funct'] = arg_gen_funct
