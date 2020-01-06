@@ -134,6 +134,7 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
     options = {}
     options['dtype'] = np.cdouble 
     options['cleanup_funct'] = default_cleanup
+    options['no_fail'] = False #whether or not exceptions will be passed
     for k,v in kwargs.items(): #we parse this first to get dtype
         options[k] = v 
     #then we generate the default function
@@ -153,20 +154,44 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
     #now loop through each size of our matrix
     for dim in dim_range: #loop through each of
         #first create our random matrices
-        arg_inputs = options['arg_gen_funct'](dim,max_num_args)
-        print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
-        #now run each function
-        for i,funct in enumerate(funct_list):   
-            funct_name = funct_names[i]
-            num_args = num_arg_list[i]
-            print('    %10s :' %(funct_name),end='');
-            lam_fun = lambda: funct(*tuple(arg_inputs[:num_args]))
-            cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps)
-            stats[funct_name]['m_'+str(dim)] = cur_stat
-            #ret_vals[funct_name] = rv
-            print(' SUCCESS')
-            rv = None #try to clear memory
-        options['cleanup_funct'](arg_inputs) #pass in list of args
+        rv = None
+        if not options['no_fail']: #allow faliure
+            arg_inputs = options['arg_gen_funct'](dim,max_num_args)
+            print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
+            #now run each function
+            for i,funct in enumerate(funct_list):   
+                funct_name = funct_names[i]
+                num_args = num_arg_list[i]
+                print('    %10s :' %(funct_name),end='');
+                lam_fun = lambda: funct(*tuple(arg_inputs[:num_args]))
+                cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps)
+                stats[funct_name]['m_'+str(dim)] = cur_stat
+                #ret_vals[funct_name] = rv
+                print(' SUCCESS')
+                rv = None #try to clear memory
+            options['cleanup_funct'](arg_inputs) #pass in list of args
+        else:
+            while True:
+                try:
+                    #first create our random matrices
+                    arg_inputs = options['arg_gen_funct'](dim,max_num_args)
+                    print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
+                    #now run each function
+                    for i,funct in enumerate(funct_list):   
+                        funct_name = funct_names[i]
+                        num_args = num_arg_list[i]
+                        print('    %10s :' %(funct_name),end='');
+                        lam_fun = lambda: funct(*tuple(arg_inputs[:num_args]))
+                        cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps)
+                        stats[funct_name]['m_'+str(dim)] = cur_stat
+                        #ret_vals[funct_name] = rv
+                        print(' SUCCESS')
+                        rv = None #try to clear memory
+                    options['cleanup_funct'](arg_inputs) #pass in list of args
+                except BaseException as e:
+                    print("Failure with exception {}".format(e))
+                    continue
+                break
     return stats,rv
       
 #%% some testing  
