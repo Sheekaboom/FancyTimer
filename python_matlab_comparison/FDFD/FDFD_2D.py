@@ -8,7 +8,7 @@ from scipy.sparse.linalg import spsolve as scispsolve
 try:
     import cupy
     import cupyx.scipy.sparse
-    from cupyx.scipy.sparse.linalg import culsqr
+    from cupyx.scipy.sparse.linalg import lsqr as culsqr
 except ModuleNotFoundError: #if cupy doesnt exist set it to none
     cupy = None
     
@@ -279,15 +279,16 @@ def FDFD_2D(num_cells_x=None,num_cells_y=None,dtype=np.cdouble,use_gpu=False):
 
 #%% Plotting
 if __name__=='__main__':
-    num_cells = 20
+    num_cells = 120
     from pycom.base.OperationTimer import fancy_timeit
-    time_stats = fancy_timeit(lambda: FDFD_2D(num_cells,num_cells),num_reps=3)
+    time_stats = fancy_timeit(lambda: FDFD_2D(num_cells,num_cells,np.cdouble),num_reps=5)
     
     E_tot,E_scat = FDFD_2D(num_cells,num_cells,np.csingle)
 
 #import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 #from matplotlib import cm
+    '''
     import plotly.io as pio
     from plotly.subplots import make_subplots
     import plotly.graph_objects as go
@@ -301,6 +302,7 @@ if __name__=='__main__':
     fig = make_subplots(rows=1,cols=3,
                     specs=[[{'type': 'surface'},{'type': 'surface'},{'type':'scatter'}]],
                     subplot_titles=("Scattered Field","Total Field"))
+    
 #fig = make_subplots(rows=1,cols=3,
 #                   specs=[[{'type': 'scatter'},{'type': 'scatter'},{'type':'scatter'}]],
 #                    subplot_titles=("Incident Field","Total Field"))
@@ -317,6 +319,7 @@ if __name__=='__main__':
     #fig.add_trace(go.Scatter(x=np.arange(len(fr)),y=fr.flatten().real),row=1,col=3)
     #fig.write_html('../../docs/python_matlab_speed_testing/figs/FDFD_results.html')
     fig.show()
+    '''
 
 '''
 fig = plt.figure()
