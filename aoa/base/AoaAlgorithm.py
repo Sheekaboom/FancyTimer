@@ -69,15 +69,21 @@ class AoaAlgorithm:
         @param[in] pos - list of xyz positions of points in the array  
         @param[in] az - np.array of azimuthal angles in radians  
         @param[in] el - np.array of elevations in radians  
+        @param[in/OPT] kwargs - keyword values as follows:
+            dtype - complex data type to use (e.g. np.cdouble)
         @return np.ndarray of size (len(freqs),len(az),len(pos))  
         '''  
-        if np.ndim(freqs)<1: freqs = np.array([freqs])
-        if np.ndim(az)<1:    az = np.array([az])
-        if np.ndim(el)<1:    el = np.array([el])
-        if np.ndim(pos)<1:   pos = np.array([pos])
-        freqs = np.array(freqs) #change to nparray
+        if np.ndim(freqs)<1: freqs = np.asarray([freqs])
+        if np.ndim(az)<1:    az = np.asarray([az])
+        if np.ndim(el)<1:    el = np.asarray([el])
+        if np.ndim(pos)<1:   pos = np.asarray([pos])
+        options = {}
+        options['dtype'] = np.cdouble
+        for k,v in kwargs.items():
+            options[k] = v
+        freqs = np.asarray(freqs) #change to nparray
         kvecs = self.get_k_vector_azel(freqs,az,el)
-        steering_vecs_out = np.ndarray((len(freqs),len(az),len(pos)),dtype=np.cdouble)
+        steering_vecs_out = np.ndarray((len(freqs),len(az),len(pos)),dtype=options['dtype'])
         for fn in range(len(freqs)):
             steering_vecs_out[fn,...] = self.vector_exp_complex(np.matmul(pos,kvecs[fn,...].transpose())).transpose()
         return steering_vecs_out
@@ -131,17 +137,19 @@ class AoaAlgorithm:
             - snr - signal to noise ratio of the signal (default inf (no noise)).
                     This is in dB compared to 10*log10(mag)  
             - noise_funct - noise function to create noise (default np.random.randn)  
+            -dtype - data type (np.csingle or np.cdouble) to return data as
         @return array of synthetic data corresponding to each element in pos. rv[freqs][pos]  
         '''
         #parse inputs
         options = {}
         options['snr'] = np.inf
         options['noise_funct'] = np.random.randn
+        options['dtype'] = np.cdouble
         for k,v in kwargs.items():
             options[k] = v
         #create the synthetic data
         kvecs = self.get_k_vector_azel(freq,az,el)
-        synth_data = np.array([self.vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs]) #go through all az,el angles
+        synth_data = np.array([self.vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs],dtype=options['dtype']) #go through all az,el angles
         #add our magnitudes
         mag = np.reshape(mag,(1,1,-1)) #allow for a list of magnitudes here also
         synth_data *= mag

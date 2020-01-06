@@ -13,6 +13,8 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+file_dir = os.path.dirname(os.path.realpath(__file__))
+matlab_src_dir = os.path.abspath(os.path.join(file_dir,'..')) #must be set according to docs
 
 
 # -- Project information -----------------------------------------------------
@@ -79,7 +81,7 @@ def setup(app):
 # ones.
 extensions = [
 'sphinx.ext.autodoc',
-'sphinxcontrib.matlab'
+'sphinxcontrib.matlab',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

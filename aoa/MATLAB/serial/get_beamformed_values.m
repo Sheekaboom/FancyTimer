@@ -8,10 +8,18 @@ function [out_vals] = get_beamformed_values(freqs,positions,weights,meas_vals,az
 %@param[in] el - array of elevations
 %return beamformed values
 num_pos = size(positions,1);
-out_vals = zeros(length(freqs),length(az)); %is matlab column major?
+%determine data type
+if isa(meas_vals,'double')
+    dtype = @double;
+else
+    dtype = @single;
+end
+%now calculate
+out_vals = dtype(zeros(length(freqs),length(az))); %is matlab column major?
 for fn=1:length(freqs) %manually loop through all frequncies
     sv = get_steering_vectors(freqs(fn),positions,az,el);
     out_vals(fn,:) = sum(weights.*meas_vals(fn,:).*sv,2)./num_pos;
+end
 end
 
 function [steering_vecs] = get_steering_vectors(freq,positions,az,el)
