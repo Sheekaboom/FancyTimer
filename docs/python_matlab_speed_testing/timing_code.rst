@@ -75,7 +75,10 @@ Python
 
 MATLAB
 ++++++++++
-Gotta get this to work
 
+mat:automodule:: base
 mat:autoclass:: base.OperationTimer
-:members:
+    :members:
+
+    
+    
