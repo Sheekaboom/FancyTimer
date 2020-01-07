@@ -10,12 +10,6 @@ import cmath
 import numpy as np
 from numba import vectorize
 import scipy.interpolate #for finding nearest incident
-#plotting in testing
-#import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-#from matplotlib import cm
-#from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import plotly.graph_objects as go
 
 class AoaAlgorithm:
     '''@brief this is a base class for creating aoa algorithms'''
@@ -189,6 +183,7 @@ class TestAoaAlgorithm(unittest.TestCase):
         self.options['calculated_data_path'] = None
         self.options['allowed_error'] = 1e-10
         self.options['aoa_class'] = None
+        self.options['plotter'] = None #plot library to use
         self.verification_dict = { #dictionary to verify options. If not exist v is None
                 'allowed_error': lambda v: v is not None and v>0,
                 'aoa_class'    : lambda v: v is not None,
@@ -239,6 +234,12 @@ class TestAoaAlgorithm(unittest.TestCase):
                                           ,self.positions,meas_vals,az,el,weights=self.weights)
         else:
             pass #othwerise lets just pass the test
+            
+#%% initialization for plotting 
+    def _init_plotting(self):
+        if self.options['plotter'] is None:
+            import plotly.graph_objects as go 
+            self.options['plotter'] = go 
         
 
 #%% properties for testing aoa   
@@ -298,6 +299,8 @@ class TestAoaAlgorithm(unittest.TestCase):
     
     def plot_2d_calc(self):
         '''@brief plot 2D calculated data with dots for correct reference'''
+        self._init_plotting()
+        go = self.options['plotter']
         myaoa = self.options['aoa_class']()
         AZ,EL = self.ANGLES
         pos = self.positions
@@ -360,7 +363,9 @@ class TestAoaAlgorithm(unittest.TestCase):
         return pos
     
     def plot_1d_calc(self):
-        '''@briref plot 1D calculated data with dots for correct reference'''
+        '''@brief plot 1D calculated data with dots for correct reference'''
+        self._init_plotting()
+        go = self.options['plotter']
         myaoa = self.options['aoa_class']()
         az,el = self.angles_1d
         pos = self.positions_1d
@@ -369,11 +374,16 @@ class TestAoaAlgorithm(unittest.TestCase):
         out_vals = myaoa.calculate(freqs,pos,meas_vals,az,el)
         #plt.plot(az,10*np.log10(np.abs(out_vals.T)))
         fig = go.Figure()
-        scat_list = [fig.add_trace(go.Scatter(x=az,y=10*np.log10(np.abs(ov)),mode='lines')) for ov in out_vals]
+        scat_list = [fig.add_trace(go.Scatter(
+                    x=az,y=10*np.log10(np.abs(ov))
+                    ,name=str(freq)+' Hz',mode='lines')) 
+                    for ov,freq in zip(out_vals,freqs)]
         azi,_ = self.incident_angles_1d
         azi_mags = np.ones_like(azi)
         #plt.scatter(azi,10*np.log10(np.abs(azi_mags)))
-        fig.add_trace(go.Scatter(x=azi,y=10*np.log10(np.abs(azi_mags)),mode='markers'))
+        fig.add_trace(go.Scatter(x=azi,y=10*np.log10(np.abs(azi_mags))
+                                 ,name='Correct Values',mode='markers'))
+        fig.update_layout(xaxis_title='Angle (radians)',yaxis_title='Magnitude (db)')
         fig.show(renderer='browser')
         return fig
         
