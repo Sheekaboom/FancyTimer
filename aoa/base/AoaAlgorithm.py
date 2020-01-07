@@ -131,7 +131,7 @@ class AoaAlgorithm:
             - snr - signal to noise ratio of the signal (default inf (no noise)).
                     This is in dB compared to 10*log10(mag)  
             - noise_funct - noise function to create noise (default np.random.randn)  
-            -dtype - data type (np.csingle or np.cdouble) to return data as
+            - dtype - data type (np.csingle or np.cdouble) to return data as
         @return array of synthetic data corresponding to each element in pos. rv[freqs][pos]  
         '''
         #parse inputs

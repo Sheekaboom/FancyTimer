@@ -24,7 +24,7 @@ class CBF(AoaAlgorithm):
         @param[in] az - np.array or single value of azimuthal angles to calculate radians  
         @param[in] el - np.array or single value of elevations radians  
         @param[in] kwargs - keyword args as follows:  
-            - weights - list of complex weightings to add to each position (taperings)  
+            - weights - list of complex weightings to add to each position (taperings) 
         @return complex beamformed value for each frequency and angle with dtype=meas_vals.dtype
         '''
         if np.ndim(freqs)<1: freqs = np.asarray([freqs])
@@ -53,7 +53,7 @@ class CBF(AoaAlgorithm):
         @param[in] pos - list of xyz positions of points in the array    
         @param[in] az - np.array of azimuthal angles in radians  
         @param[in] el - np.array of elevations in radians  
-        @param[in/OPT] keyword args as follows:
+        @param[in/OPT] kwargs - keyword args as follows:
             - dtype - complex data type for output (default np.cdouble)
         @return np.ndarray of size (len(freqs),len(az),len(pos))  
         '''  

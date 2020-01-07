@@ -30,19 +30,40 @@ release = '0.1'
 import commonmark
 import re
 
+def param_parse_fun(str):
+    '''
+    @brief function to parse our parameters and kwargs
+    @note kwargs should be of the following form 
+    @param[in/OPT] kwargs - keyword args as follows:
+        - kwarg1 - keywor argument 1
+        - kwarg2 - keyword argument 2
+    '''
+    #first change @param[in] name - blah blah blah to :param name: blah blah blah
+    str = ':param '+' '.join(str.strip().split(' ')[1:]).replace(' -',':',1)
+    #remove excess newlines while parsing
+    str = str.replace('\n','')
+    #now lets try and parse a list of arguments 
+    splits = str.split('-') #split on '-' and assume [0] is the param naming crap
+    split_names = splits[1::2]
+    split_vals = splits[2::2]
+    #now have each a separate split argument
+    split_args = ['*'+name.strip()+'*->'+val.strip() for name,val in zip(split_names,split_vals)]
+    str = ' \n ---  '.join([splits[0]]+split_args)
+    #remove excess whitespace
+    str = re.sub(' +',' ',str)+'\n' 
+    return str
+
 dox_funct_dict = {
     "brief"  : lambda str: re.sub(' +',' ',str.strip().strip("brief").replace('\n','').strip()),
-    "param"  : lambda str: re.sub(' +',' ',':param '+' '.join(str.strip().split(' ')[1:]).replace(' -',':').replace('\n','')+'\n'),
-    "example": lambda str: re.sub(' +',' ',('.. code-block:: python\n'+str.strip().strip('example')).replace('\n','\n   ')+'\n'),
+    "param"  : param_parse_fun,
+    "example": lambda str: re.sub(' ',' ',('.. code-block:: python\n'+str.strip().strip('example')).replace('\n','\n   ')+'\n'),
     "return" : lambda str: re.sub(' +',' ',":return: "+str.strip().strip("return").replace('\n','')+'\n'),
     "note"   : lambda str: re.sub(' +',' ',".. note:"+str.strip().strip("note").replace('\n','')+'\n'),
     "warning": lambda str: re.sub(' +',' ',".. warning:"+str.strip().strip("warning").replace('\n','')+'\n'),
     "todo"   : lambda str: re.sub(' +',' ',".. todo::"+str.strip().strip("todo").replace('\n','')+'\n'),
     "cite"   : lambda str: re.sub(' +',' ',".. seealso:: "+"*"+str.strip().strip("cite").replace('\n','')+"*\n"),
 }
-
- 
-
+    
 def docstring_preprocess(doc_str):
     '''@brief preprocess our doc strings'''
     doc_str = doc_str.replace('*','\*')

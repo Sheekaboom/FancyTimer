@@ -121,11 +121,11 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
     @param[in] dim_range - range of numbers to use as M for an MxM matrix
     @param[in/OPT] num_reps - number of repeats for timing and statistics
     @param[in/OPT] kwargs - keyword arguments as follows
-        arg_gen_funct -function to generate the matrix from a dim value input
+        - arg_gen_funct - function to generate the matrix from a dim value input
             if not included default to generate np.cdouble random matrix
-        timer_funct - function to use for timing. If not included uses fancy_timeit
-        dtype - dtype to use for the default arg_gen_funct. should be cdouble or csingle
-        cleanup_funct = function to run on arg_inputs after each dimension iteration
+        - timer_funct - function to use for timing. If not included uses fancy_timeit
+        - dtype - dtype to use for the default arg_gen_funct. should be cdouble or csingle
+        - cleanup_funct - function to run on arg_inputs after each dimension iteration
             must recieve list of args to cleanup
     '''
     def default_cleanup(arg_list):
