@@ -266,7 +266,8 @@ class QAMConstellation():
     
     def calculate_evm(self,measured_values,correct_values):
         '''
-        @brief calculate the evm from a signal. This is calulcated from equation (1)
+        @brief calculate the evm from a signal. 
+        @cite This is calulcated from equation (1)
             from "Analysis on the Denition Consistency Problem of EVM Measurement 
             and Its Solution" by Z. Feng, J. Riu, S. Jing-Lu, and Z. Xin
         @param[in] input_signal - QAMSignal with the ideal IQ locations in data_iq
@@ -323,7 +324,7 @@ class QAMConstellation():
         return location_map_dict
 
     def plot_mpl(self,**arg_options):
-        '''@brief plot the constellation points defined in constellation_dict with mmatplotlib'''
+        '''@brief plot the constellation points defined in constellation_dict with matplotlib'''
         #configure the figure
         fig = plt.figure()
         ax  = plt.axes()
@@ -341,7 +342,7 @@ class QAMConstellation():
         vals = np.array(list(self._constellation_dict.values()))
         fig.add_trace(go.Scatter(x=vals.real,y=vals.imag,text=val_names,
                                  mode='markers+text',textposition="bottom center",
-                                 marker=dict(color=1, size=20)))
+                                 marker=dict(color=1, size=20),name='QAM Points'))
         return fig
     
 #%% Class for adding false noise to iq data

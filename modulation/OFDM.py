@@ -43,20 +43,24 @@ def get_correction_from_pilots(pilot_freqs,meas_pilots,correct_pilots,**kwargs):
     def channel_correct_funct(freqs,data,**kwargs):
         '''
         @brief function to correct a list of OFDMSignals to correct
-        @param[in] freqs - frequencies for each data to correct in the packet data
-        @param[in] data - data packet or list of data packets (np.ndarrays)
+        @param[in] freqs - frequencies of the packets in data arg.
+            All packets must have the same frequencies
+        @param[in] data - list of np.ndarrays for each data packet to correct
+        @return list of np.ndarrays for each
         '''
-        out_data = []
-        if np.ndim(data)<=0:
+        if np.ndim(data)==1: #add a dimension if only 1 is had
             data = [data]
+        if np.ndim(data)!=2: #ensure we have the correct number of dimensions
+            raise Exception("Incorrect dimsensions in 'data' arg {}".format(np.ndim(data)))
+        out_data = []
         for d in data:
             mag_correction = mag_interp_fun(freqs)
             phase_correction = phase_interp_fun(freqs)
             cur_mag,cur_phase = complex2magphase(d)
             cur_mag*=mag_correction
             cur_phase+=phase_correction
-            new_d = magphase2complex(cur_mag,cur_phase)
-            out_data.append(new_d)
+            corr_d = magphase2complex(cur_mag,cur_phase)
+            out_data.append(corr_d)
         return out_data
     return channel_correct_funct
 
