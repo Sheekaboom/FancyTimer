@@ -68,17 +68,19 @@ if __name__=='__main__':
     
     import plotly.graph_objects as go
     from pycom.base.OperationTimer import fancy_timeit 
+    from WeissTools.python.PlotTools import format_plot
     
     dtype = np.cdouble
     
-    tstats = fancy_timeit(lambda: beamform_speed(500,dtype=dtype))
+    #tstats = fancy_timeit(lambda: beamform_speed(500,dtype=dtype))
     
-    print(tstats['mean'])
+    #print(tstats['mean'])
     
     bfv,az,el = beamform_speed(181,dtype=dtype)
     fig = go.Figure(go.Surface(x=az,y=el,z=10*np.log10(np.abs(bfv))))
+    fig = format_plot(fig,font_size=12)
     fig.write_html('../../docs/python_matlab_speed_testing/figs/beamform_results.html')
-    #fig.show()
+    fig.show()
     
     
     

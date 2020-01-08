@@ -79,12 +79,18 @@ class TestCBF(TestAoaAlgorithm):
         self.options['aoa_class'] = CBF
             
 if __name__=='__main__':
+    
+    from WeissTools.python.PlotTools import format_plot
+    
     mytest = TestCBF()
     odf = mytest.plot_1d_calc()
     tdf = mytest.plot_2d_calc()
+    odf = format_plot(odf)
+    tdf = format_plot(tdf,font_size=12)
     
-   # odf.write_html('../docs/aoa/cbf/figs/1D_results.html')
-   # tdf.write_html('../docs/aoa/cbf/figs/2D_results.html')
+    odf.write_html('../docs/aoa/cbf/figs/1D_results.html')
+    tdf.write_html('../docs/aoa/cbf/figs/2D_results.html')
+   # save_plot(tdf,'beamforming_results','../docs/aoa/cbf')
 #    mycbf = CBF()
 #    az,el = mytest.angles_1d
 #    pos = mytest.positions_1d

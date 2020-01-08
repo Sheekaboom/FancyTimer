@@ -50,7 +50,7 @@ def param_parse_fun(str):
     split_args = ['*'+name.strip()+'*->'+val.strip() for name,val in zip(split_names,split_vals)]
     str = ' \n ---  '.join([splits[0]]+split_args)
     #remove excess whitespace
-    str = re.sub(' +',' ',str)+'\n' 
+    str = '\n'+re.sub(' +',' ',str)+'\n' 
     return str
 
 dox_funct_dict = {
