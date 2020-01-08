@@ -10,12 +10,6 @@ import cmath
 import numpy as np
 from numba import vectorize
 import scipy.interpolate #for finding nearest incident
-#plotting in testing
-#import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-#from matplotlib import cm
-#from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import plotly.graph_objects as go
 
 class AoaAlgorithm:
     '''@brief this is a base class for creating aoa algorithms'''
@@ -69,15 +63,21 @@ class AoaAlgorithm:
         @param[in] pos - list of xyz positions of points in the array  
         @param[in] az - np.array of azimuthal angles in radians  
         @param[in] el - np.array of elevations in radians  
+        @param[in/OPT] kwargs - keyword values as follows:
+            dtype - complex data type to use (e.g. np.cdouble)
         @return np.ndarray of size (len(freqs),len(az),len(pos))  
         '''  
-        if np.ndim(freqs)<1: freqs = np.array([freqs])
-        if np.ndim(az)<1:    az = np.array([az])
-        if np.ndim(el)<1:    el = np.array([el])
-        if np.ndim(pos)<1:   pos = np.array([pos])
-        freqs = np.array(freqs) #change to nparray
+        if np.ndim(freqs)<1: freqs = np.asarray([freqs])
+        if np.ndim(az)<1:    az = np.asarray([az])
+        if np.ndim(el)<1:    el = np.asarray([el])
+        if np.ndim(pos)<1:   pos = np.asarray([pos])
+        options = {}
+        options['dtype'] = np.cdouble
+        for k,v in kwargs.items():
+            options[k] = v
+        freqs = np.asarray(freqs) #change to nparray
         kvecs = self.get_k_vector_azel(freqs,az,el)
-        steering_vecs_out = np.ndarray((len(freqs),len(az),len(pos)),dtype=np.cdouble)
+        steering_vecs_out = np.ndarray((len(freqs),len(az),len(pos)),dtype=options['dtype'])
         for fn in range(len(freqs)):
             steering_vecs_out[fn,...] = self.vector_exp_complex(np.matmul(pos,kvecs[fn,...].transpose())).transpose()
         return steering_vecs_out
@@ -131,17 +131,19 @@ class AoaAlgorithm:
             - snr - signal to noise ratio of the signal (default inf (no noise)).
                     This is in dB compared to 10*log10(mag)  
             - noise_funct - noise function to create noise (default np.random.randn)  
+            - dtype - data type (np.csingle or np.cdouble) to return data as
         @return array of synthetic data corresponding to each element in pos. rv[freqs][pos]  
         '''
         #parse inputs
         options = {}
         options['snr'] = np.inf
         options['noise_funct'] = np.random.randn
+        options['dtype'] = np.cdouble
         for k,v in kwargs.items():
             options[k] = v
         #create the synthetic data
         kvecs = self.get_k_vector_azel(freq,az,el)
-        synth_data = np.array([self.vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs]) #go through all az,el angles
+        synth_data = np.array([self.vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs],dtype=options['dtype']) #go through all az,el angles
         #add our magnitudes
         mag = np.reshape(mag,(1,1,-1)) #allow for a list of magnitudes here also
         synth_data *= mag
@@ -181,6 +183,7 @@ class TestAoaAlgorithm(unittest.TestCase):
         self.options['calculated_data_path'] = None
         self.options['allowed_error'] = 1e-10
         self.options['aoa_class'] = None
+        self.options['plotter'] = None #plot library to use
         self.verification_dict = { #dictionary to verify options. If not exist v is None
                 'allowed_error': lambda v: v is not None and v>0,
                 'aoa_class'    : lambda v: v is not None,
@@ -231,6 +234,12 @@ class TestAoaAlgorithm(unittest.TestCase):
                                           ,self.positions,meas_vals,az,el,weights=self.weights)
         else:
             pass #othwerise lets just pass the test
+            
+#%% initialization for plotting 
+    def _init_plotting(self):
+        if self.options['plotter'] is None:
+            import plotly.graph_objects as go 
+            self.options['plotter'] = go 
         
 
 #%% properties for testing aoa   
@@ -290,6 +299,8 @@ class TestAoaAlgorithm(unittest.TestCase):
     
     def plot_2d_calc(self):
         '''@brief plot 2D calculated data with dots for correct reference'''
+        self._init_plotting()
+        go = self.options['plotter']
         myaoa = self.options['aoa_class']()
         AZ,EL = self.ANGLES
         pos = self.positions
@@ -352,7 +363,9 @@ class TestAoaAlgorithm(unittest.TestCase):
         return pos
     
     def plot_1d_calc(self):
-        '''@briref plot 1D calculated data with dots for correct reference'''
+        '''@brief plot 1D calculated data with dots for correct reference'''
+        self._init_plotting()
+        go = self.options['plotter']
         myaoa = self.options['aoa_class']()
         az,el = self.angles_1d
         pos = self.positions_1d
@@ -361,11 +374,16 @@ class TestAoaAlgorithm(unittest.TestCase):
         out_vals = myaoa.calculate(freqs,pos,meas_vals,az,el)
         #plt.plot(az,10*np.log10(np.abs(out_vals.T)))
         fig = go.Figure()
-        scat_list = [fig.add_trace(go.Scatter(x=az,y=10*np.log10(np.abs(ov)),mode='lines')) for ov in out_vals]
+        scat_list = [fig.add_trace(go.Scatter(
+                    x=az,y=10*np.log10(np.abs(ov))
+                    ,name=str(freq)+' Hz',mode='lines')) 
+                    for ov,freq in zip(out_vals,freqs)]
         azi,_ = self.incident_angles_1d
         azi_mags = np.ones_like(azi)
         #plt.scatter(azi,10*np.log10(np.abs(azi_mags)))
-        fig.add_trace(go.Scatter(x=azi,y=10*np.log10(np.abs(azi_mags)),mode='markers'))
+        fig.add_trace(go.Scatter(x=azi,y=10*np.log10(np.abs(azi_mags))
+                                 ,name='Correct Values',mode='markers'))
+        fig.update_layout(xaxis_title='Angle (radians)',yaxis_title='Magnitude (db)')
         fig.show(renderer='browser')
         return fig
         

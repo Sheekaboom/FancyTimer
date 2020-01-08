@@ -10,6 +10,11 @@ This documentation covers the pycom library (maybe it should be renamed Py5G?)
 which contains code to implement and test angle of arrival (AoA) and Beamforming type algorithms (may require some samurai code)
 
 .. toctree::
+   modulation/index
+   :maxdepth: 2
+   :caption: Communications Simulation:
+
+.. toctree::
    aoa/index
    :maxdepth: 2
    :caption: Angle of Arrival:
@@ -28,9 +33,11 @@ Dependencies
 - scipy
 - What else ???
 
+
 Indices and tables
 ==================
 
 * :ref:`genindex`
 * :ref:`modindex`
+* `MATLAB Module Index <mat-modindex.html>`_
 * :ref:`search`
