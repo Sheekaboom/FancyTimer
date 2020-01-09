@@ -6,7 +6,7 @@ Created on Mon Dec 23 20:09:23 2019
 """
 #run each of these scripts by importing them
 
-DEBUG=True
+DEBUG=False
 output_directory = './data'
 
 print("Running Basic Sweep")

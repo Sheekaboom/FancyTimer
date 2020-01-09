@@ -3,7 +3,7 @@
 file_dir = fileparts(mlfilename('fullpath')); %get the directory of this file
 pycom_path = fullfile(file_dir,'../../'); %assume the base is 2 levels up from this
 
-DEBUG = true;
+DEBUG = false;
 
 fprintf("Running Basic Sweep");
 time_sweep_basic_cpu;
