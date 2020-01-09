@@ -1,0 +1,4 @@
+#do not keep anything in the data directory
+*data/
+#do not keep any saved matlab files
+*.mat
