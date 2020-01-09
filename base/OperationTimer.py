@@ -189,7 +189,8 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
                         rv = None #try to clear memory
                     options['cleanup_funct'](arg_inputs) #pass in list of args
                 except BaseException as e:
-                    print("Failure with exception {}".format(e))
+                    print("Failure with exception {}".format(e.__class__.__name__))
+                    if e.__class__ is KeyboardInterrupt: raise KeyboardInterrupt #allow keyboard interrupt
                     continue
                 break
     return stats,rv
