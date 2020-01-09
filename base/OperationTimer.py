@@ -157,7 +157,10 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
         rv = None
         if not options['no_fail']: #allow faliure
             arg_inputs = options['arg_gen_funct'](dim,max_num_args)
-            print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
+            if np.ndim(arg_inputs[0])==0:
+                print("Running with input of {}, dtype={}:".format(arg_inputs[0],arg_inputs[0].dtype))
+            else:
+                print("Running with matrix of {}, dtype={}:".format(np.shape(arg_inputs[0]),arg_inputs[0].dtype))
             #now run each function
             for i,funct in enumerate(funct_list):   
                 funct_name = funct_names[i]

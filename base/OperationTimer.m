@@ -83,7 +83,11 @@ classdef OperationTimer < handle
                 else
                     arg_inputs = p.Results.arg_gen_funct(dim,max_num_args);
                 end
-                fprintf(['Running with matrix of :',sprintf('%d,',size(arg_inputs{1}))]);
+                if all(size(arg_inputs{1})==1) && ~issparse(arg_inputs{1})
+                    fprintf(['Running with input of :',sprintf('%d,',arg_inputs{1}(1))]);
+                else
+                    fprintf(['Running with matrix of :',sprintf('%d,',size(arg_inputs{1}))]);
+                end
                 fprintf(' dtype= %s\n',class(arg_inputs{1}));
                 %now run each function
                 for fn=1:length(funct_list)
