@@ -6,6 +6,9 @@ For the CPU MATLAB was compared to Python's Numpy/Scipy and then compared to acc
 For the GPU MATLAB's gpuArray was used and the Python CuPy library was used. Most tests
 were performed with both single and double precision complex numbers.
 
+Comparison Results 
+-----------------------
+
 These tests were performed on the bb306-awg-1 server. (add info on this system)
 
 .. toctree::
@@ -18,6 +21,36 @@ These tests were performed on the bb306-awg-1 server. (add info on this system)
    :maxdepth: 2
    :caption: Contents:
 
+Running the Comparisons
+--------------------------
+
+All comparisons were run together with the following scripts:
+
+Python
+++++++++++++
+
+.. module:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
+.. data:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
+
+.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_cpu.py
+    :language: python
+    :linenos:
+
+MATLAB 
++++++++++++++
+
+.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
+.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_cpu 
+
+.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_cpu.m
+    :language: matlab
+    :linenos:
+
+
+Plotting the Data
+--------------------------
+
+The output data was plotted with ???
 
 
 

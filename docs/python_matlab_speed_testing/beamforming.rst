@@ -49,51 +49,12 @@ Python
 
 **CPU Code** 
 
-.. code-block:: python 
+..  module:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
+..  data:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
 
-    # -*- coding: utf-8 -*-
-    """
-    Created on Tue Nov  5 16:14:54 2019
-
-    @author: aweiss
-    """
-
-    from pycom.base.OperationTimer import fancy_timeit_matrix_sweep
-    from pycom.python_matlab_comparison.beamforming.beamform_speed import beamform_speed
-    import numpy as np
-    import scipy.linalg
-
-    #%% Some initialization
-    dim_list = np.floor(np.linspace(1,500,51)).astype(np.uint32);
-    #dim_list = np.floor(np.linspace(1,50,6)).astype(np.uint32);
-    out_file = 'stats_py_np_beamforming.mat'
-
-    #num_reps = 100
-    num_reps = 10
-
-    stats_np_single = {}
-    stats_np_double = {}
-
-    #argument generation
-    def beamforming_arg_gen_funct(dim,num_args): #generate num_cells_x,num_cells_y as dim
-        return [dim,np.cdouble]  
-    def beamforming_arg_gen_funct_single(dim,num_args): #generate num_cells_x,num_cells_y as dim
-        return [dim,np.csingle]  
-
-    #now run
-    [solve_stats_double,_] = fancy_timeit_matrix_sweep(
-            [beamform_speed],['beamforming'],[2],dim_list,num_reps
-            ,arg_gen_funct=beamforming_arg_gen_funct);
-    [solve_stats_single,_] = fancy_timeit_matrix_sweep(
-            [beamform_speed],['beamforming'],[2],dim_list,num_reps
-            ,arg_gen_funct=beamforming_arg_gen_funct_single);
-            
-    stats_np_double.update(solve_stats_double)
-    stats_np_single.update(solve_stats_single)
-        
-    #%% now save out (single is not used)
-    import scipy.io as sio
-    sio.savemat(out_file,{'single':stats_np_single,'double':stats_np_double})
+.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_beamforming_cpu.m 
+    :language: python
+    :linenos:
 
 
 
@@ -102,45 +63,12 @@ MATLAB
 
 **CPU Code**
 
-.. code-block:: matlab
+.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
+.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
 
-    path_to_pycom = 'C:\Users\aweis\git\';
-    addpath(fullfile(path_to_pycom,'pycom\python_matlab_comparison\beamforming\'));
-    addpath(fullfile(path_to_pycom,'pycom\base'));
-
-    %% Some initialization
-    dim_list = floor(linspace(1,50,6));
-    %dim_list = floor(linspace(1,500,51));
-    out_file = 'stats_mat_beamforming.mat';
-
-    %% Test the fancy_timeit_matrix_sweep capability
-    functs      = {@beamform_speed};
-    funct_names = {'beamforming'  };
-    num_args    = [2      ];
-    num_reps    = 100;
-    num_reps = 5;
-
-    % now run 
-    stats_mat_double = OperationTimer.fancy_timeit_matrix_sweep(...
-        functs,funct_names,num_args,dim_list,num_reps,'arg_gen_funct',@fdfd_arg_gen_funct);
-    stats_mat_single = OperationTimer.fancy_timeit_matrix_sweep(...
-        functs,funct_names,num_args,dim_list,num_reps,'arg_gen_funct',@fdfd_arg_gen_funct_single);
-        
-    %% now save out
-    m_single = stats_mat_single; % matlab cant do sparse single
-    m_double = stats_mat_double;
-    save(out_file,'m_single','m_double');
-        
-    %% functions for fft arg generation                                     
-    function args = fdfd_arg_gen_funct(dim,num_args)
-         %@brief generate default arguments
-        args = {dim,@double};
-    end
-
-    function args = fdfd_arg_gen_funct_single(dim,num_args)
-         %@brief generate default arguments
-        args = {dim,@single};
-    end
+.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_beamforming_cpu.m 
+    :language: matlab
+    :linenos:
 	
 
 
