@@ -70,15 +70,17 @@ Libraries for Timing
 
 Python
 +++++++++++++
+
 .. automodule:: base.OperationTimer
 	:members:
 
 MATLAB
 ++++++++++
 
-mat:automodule:: base
-mat:autoclass:: base.OperationTimer
-    :members:
+.. mat:automodule:: base
+.. mat:autoclass:: base.OperationTimer
+   :members:
+
 
     
     
