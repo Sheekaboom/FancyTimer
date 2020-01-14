@@ -22,8 +22,9 @@ parse(p,varargin{:});
 dtype = p.Results.dtype;
 
 %now lets actually calculate
-freqs = dtype([40e9]); %frequency
-%freqs = np.arange(26.5e9,40e9,10e6)
+%freqs = dtype([40e9]); %frequency
+%freqs = linspace(26.5,40e9,25);
+freqs = np.arange(26.5e9,40e9,10e6)
 numel = [35,35,1]; %number of elements in x,y
 
 %now calculate everything
@@ -41,8 +42,7 @@ az = reshape(AZ,1,[]);
 el = reshape(EL,1,[]);
 
 %calcualte weights and synthesize data
-weights = complex(ones(1,size(pos,1))); %get our weights
-weights = dtype(weights);
+weights = complex(dtype(ones(1,size(pos,1)))); %get our weights
 sv = synthesize_data(freqs(1),pos,-pi/4,pi/4);
 msv = dtype(sv);
 meas_vals = repmat(msv,length(freqs),1);
@@ -51,9 +51,9 @@ meas_vals = repmat(msv,length(freqs),1);
 bf_vals = get_beamformed_values(freqs,pos,weights,meas_vals,az,el);
 
 %reshape our values for returning
-azr = reshape(az,length(azi),length(eli));
-elr = reshape(el,length(azi),length(eli));
-bfr = reshape(bf_vals,length(azi),length(eli));
+azr = reshape(az,[],length(azi),length(eli));
+elr = reshape(el,[],length(azi),length(eli));
+bfr = reshape(bf_vals,[],length(azi),length(eli));
 
 end
 

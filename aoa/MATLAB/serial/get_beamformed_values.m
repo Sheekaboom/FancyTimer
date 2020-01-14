@@ -15,10 +15,11 @@ else
     dtype = @single;
 end
 %now calculate
+weight_sum = complex(sum(sum(weights)));
 out_vals = dtype(zeros(length(freqs),length(az))); %is matlab column major?
 for fn=1:length(freqs) %manually loop through all frequncies
     sv = get_steering_vectors(freqs(fn),positions,az,el);
-    out_vals(fn,:) = sum(weights.*meas_vals(fn,:).*sv,2)./num_pos;
+    out_vals(fn,:) = sum(weights.*meas_vals(fn,:).*sv,2)./weight_sum;
 end
 end
 
@@ -29,6 +30,7 @@ function [steering_vecs] = get_steering_vectors(freq,positions,az,el)
 %@param[in] az - azimuth angles (raidans)
 %@param[in] el - elevation angles (radians)
 kvecs = get_k_vector_azel(freq,az,el); %get k vectors
-steering_vecs = exp(-1i.*(positions*kvecs)).';
+temp_mult = (positions*kvecs).';
+steering_vecs = exp(-1i.*temp_mult);
 end
 
