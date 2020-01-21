@@ -1,2 +1,4 @@
+# ignore the build folder and compiled files
 *build/
+*.pyd
 *.mod

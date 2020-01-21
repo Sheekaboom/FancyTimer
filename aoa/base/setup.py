@@ -12,7 +12,7 @@ from Cython.Compiler import Options
 Options.annotate = True
 
 setup(
-    ext_modules = cythonize("CBF.pyx")
+    ext_modules = cythonize("AoaAlgorithmCython.pyx")
 )
 
 

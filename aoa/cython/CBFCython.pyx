@@ -5,11 +5,13 @@ Implementation of conventional beamforming in Cython
 @author: aweis
 """
 
-from pycom.aoa.base.AoaAlgorithm import AoaAlgorithm,TestAoaAlgorithm
+from pycom.aoa.base.AoaAlgorithmCython import AoaAlgorithm,TestAoaAlgorithm
 from numba import complex128,complex64
 from numba import vectorize
 import numpy as np
 import cmath
+
+#cimport numpy as np
 
 class CBF(AoaAlgorithm):
     '''@brief perform conventional beamforming'''
@@ -30,10 +32,12 @@ class CBF(AoaAlgorithm):
         if np.ndim(freqs)<1: freqs = np.asarray([freqs])
         if np.ndim(el   )<1: el    = np.asarray([el   ])
         if np.ndim(az   )<1: az    = np.asarray([az   ])
+        
+        num_freqs = freqs.shape[0]
         if 'weights' not in kwargs:
             kwargs['weights'] = np.ones((len(pos),),dtype=meas_vals.dtype)
         out_vals = np.ndarray((freqs.size,az.size),dtype=meas_vals.dtype)
-        for fn in range(len(freqs)):
+        for fn in range(num_freqs):
             #print("Running with frequency {}".format(freqs[fn]))
             sv = self.get_steering_vectors_no_exp(freqs[fn],pos,az,el,dtype=meas_vals.dtype)
             temp_mult = self.vector_beamform(kwargs['weights'],meas_vals[fn],sv)
