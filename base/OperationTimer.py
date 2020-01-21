@@ -7,13 +7,12 @@ Created on Tue Oct 29 12:16:02 2019
 import timeit
 import numpy as np
 import inspect
+import re
+
 try:
     from samurai.base.SamuraiDict import   SamuraiDict
 except ModuleNotFoundError:
-    from collections import OrderedDict as SamuraiDict
-    
-
-       
+    from collections import OrderedDict as SamuraiDict       
   
 class FancyTimerStats(SamuraiDict):
     '''
@@ -62,6 +61,24 @@ class FancyTimerStatsSet(SamuraiDict):
         @param[in] Same inputs as a regular dictionary
         '''
         super().__init__(*args,**kwargs)
+        
+    def get_stats_as_arrays(self,sort=True):
+        '''
+        @brief Get all of the statistics as arrays for operating on
+        @param[in/OPT] sort - whether or not to sort by size (True)
+        @return A dictionary with keys 'mean','stdev','min','max', and 'size'
+            each mapping to an array of the corresponding data
+        '''
+        array_dict = {}
+        array_dict['size']  = np.array([int(re.sub('[^0-9]*','',k)) for k in self.keys()])
+        stats_names = list(self.values())[0].keys()
+        for stat_name in stats_names:
+            array_dict[stat_name] = np.array([stat[stat_name] for stat in self.values()])
+        if sort:
+            sort_idx = np.argsort(array_dict['size'])
+            for k,v in array_dict.items(): #now sort each value (including size)
+                array_dict[k] = v[sort_idx]
+        return array_dict
         
 class FancyTimerStatsMatrixSet(FancyTimerStatsSet):
     '''

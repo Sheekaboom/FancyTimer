@@ -270,6 +270,11 @@ title('Total Field Magnitude');
 view([0,90]);
 shading interp;
 
+fig = figure(); shading interp;
+surf(abs(E_tot)');
+title('Total Field Magnitude');
+view([0,90]);
+
 %}
 
 
