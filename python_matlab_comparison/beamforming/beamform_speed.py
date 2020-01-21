@@ -9,7 +9,7 @@ from pycom.aoa.CBF import CBF
 from pycom.base.OperationTimer import fancy_timeit 
 import numpy as np
 
-def beamform_speed(num_angles,dtype='double'):
+def beamform_speed(num_angles,dtype='double',bf_funct=CBF.calculate):
     '''
     @brief This function is used to calculate beamforming for given number of
         input angles per plane (az,el). Good for speed testing of languages.
@@ -57,7 +57,7 @@ def beamform_speed(num_angles,dtype='double'):
     meas_vals = np.tile(msv,(len(freqs),1));
     
     #get our beamformed values
-    bf_vals = CBF.calculate(freqs,pos,meas_vals,az,el,weights=weights);
+    bf_vals = bf_funct(freqs,pos,meas_vals,az,el,weights=weights);
     
     #reshape our values for returning
     azr = np.reshape(az     ,(-1,*AZ.shape));

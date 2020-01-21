@@ -58,9 +58,10 @@ bfr = reshape(bf_vals,[],length(azi),length(eli));
 end
 
 %{
-[bfv,az,el] = beamform_speed(10);
+[bfv,az,el] = beamform_speed(181);
 surf(az,el,10*log10(abs(bfv)));
 shading('interp');
+view([0,90])
 
 tic; beamform_speed(181); toc
 
