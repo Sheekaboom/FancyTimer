@@ -120,7 +120,7 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
             that should be passed to the corresponding function in myfunct_list
     @param[in] dim_range - range of numbers to use as M for an MxM matrix
     @param[in/OPT] num_reps - number of repeats for timing and statistics
-    @param[in/OPT] kwargs - keyword arguments as follows
+    @param[in/OPT] kwargs - keyword arguments as follows:
         - arg_gen_funct - function to generate the matrix from a dim value input
             if not included default to generate np.cdouble random matrix
         - timer_funct - function to use for timing. If not included uses fancy_timeit
