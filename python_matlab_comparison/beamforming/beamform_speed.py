@@ -6,6 +6,7 @@ Created on Sun Jan  5 19:36:05 2020
 """
 
 from pycom.aoa.CBF import CBF
+from pycom.base.OperationTimer import fancy_timeit 
 import numpy as np
 
 def beamform_speed(num_angles,dtype='double',bf_funct=CBF.calculate):
@@ -29,7 +30,8 @@ def beamform_speed(num_angles,dtype='double',bf_funct=CBF.calculate):
     else:
         dtype  = np.single
         cdtype = np.csingle
-        
+    
+    #freqs = np.linspace(26.5e9,40e9,25)
     freqs = np.array([40e9],dtype=dtype); #frequency
     numel = [35,35,1]; #number of elements in x,y
     
@@ -50,37 +52,37 @@ def beamform_speed(num_angles,dtype='double',bf_funct=CBF.calculate):
     #calculate weights and synthesize data
     weights = np.ones(pos.shape[0],dtype=cdtype); #get our weights
     sv = CBF.synthesize_data(freqs[0],pos,-np.pi/4,np.pi/4,dtype=cdtype);
+    
     msv = sv;
-    meas_vals = np.tile(msv,len(freqs));
+    meas_vals = np.tile(msv,(len(freqs),1));
     
     #get our beamformed values
     bf_vals = bf_funct(freqs,pos,meas_vals,az,el,weights=weights);
     
     #reshape our values for returning
-    azr = np.reshape(az,AZ.shape);
-    elr = np.reshape(el,AZ.shape);
-    bfr = np.reshape(bf_vals,AZ.shape);
+    azr = np.reshape(az     ,(-1,*AZ.shape));
+    elr = np.reshape(el     ,(-1,*AZ.shape));
+    bfr = np.reshape(bf_vals,(-1,*AZ.shape));
     
     return bfr,azr,elr
 
 
 if __name__=='__main__':
     
-    import plotly.graph_objects as go
-    from pycom.base.OperationTimer import fancy_timeit 
-    from WeissTools.python.PlotTools import format_plot
+    #import plotly.graph_objects as go
+    #from WeissTools.python.PlotTools import format_plot
     
-    dtype = np.cdouble
-    
-    #tstats = fancy_timeit(lambda: beamform_speed(500,dtype=dtype))
+    dtype = np.csingle
+    tstats = fancy_timeit(lambda:beamform_speed(181,dtype=dtype),1)
+    #bfv,az,el = beamform_speed(181,dtype=dtype)
     
     #print(tstats['mean'])
     
-    bfv,az,el = beamform_speed(181,dtype=dtype)
-    fig = go.Figure(go.Surface(x=az,y=el,z=10*np.log10(np.abs(bfv))))
-    fig = format_plot(fig,font_size=12)
-    fig.write_html('../../docs/python_matlab_speed_testing/figs/beamform_results.html')
-    fig.show()
+    #bfv,az,el = beamform_speed(181,dtype=dtype)
+    #fig = go.Figure(go.Surface(x=az,y=el,z=10*np.log10(np.abs(bfv))))
+    #fig = format_plot(fig,font_size=12)
+    #fig.write_html('../../docs/python_matlab_speed_testing/figs/beamform_results.html')
+    #fig.show()
     
     
     

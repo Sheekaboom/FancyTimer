@@ -11,6 +11,32 @@ import numpy as np
 from numba import vectorize
 import scipy.interpolate #for finding nearest incident
 
+#%% numba vectorize operations
+from numba import complex128,complex64
+@vectorize([complex64 (complex64 ),
+            complex128(complex128)],target='parallel')
+def vector_exp_complex(vals):
+    '''@brief numba compex exponential'''
+    return cmath.exp(-1j*vals)
+
+@vectorize([complex64 (complex64 ,complex64 ),
+            complex128(complex128,complex128)],target='parallel')
+def vector_mult_complex(a,b):
+    '''@brief numba complex vector multiplication''' 
+    return a*b
+
+@vectorize([complex64 (complex64 ,complex64 ,complex64 ),
+            complex128(complex128,complex128,complex128)],target='parallel')
+def vector_mult3_complex(a,b,c):
+    '''@brief numba complex vector multiplication''' 
+    return a*b*c
+
+#@vectorize([complex128(complex128,complex128,complex128),
+#            complex64 (complex64 ,complex64 ,complex64 )],target='cpu')
+#def vector_beamform(weights,meas_vals,sv_no_exp):
+#    '''@brief numba complex beamform multiplication'''
+#    return weights*meas_vals*cmath.exp(-1j*sv_no_exp)
+
 class AoaAlgorithm:
     '''@brief this is a base class for creating aoa algorithms'''
     SPEED_OF_LIGHT = np.double(299792458.0)
@@ -20,7 +46,7 @@ class AoaAlgorithm:
     
     #%% Lots of methods that should be defined by subclasses
     @classmethod
-    def get_k(self,freq,eps_r=1,mu_r=1):
+    def get_k(cls,freq,eps_r=1,mu_r=1):
         '''
         @brief get our wavenumber  
         @note this part stays the same for all python implementations  
@@ -28,12 +54,12 @@ class AoaAlgorithm:
         >>> AoaAlgorithm.get_k(40e9,1,1)  
         838.3380087806727  
         '''
-        lam = self.SPEED_OF_LIGHT/np.sqrt(eps_r*mu_r)/freq
+        lam = cls.SPEED_OF_LIGHT/np.sqrt(eps_r*mu_r)/freq
         k = 2*np.pi/lam
         return k 
     
     @classmethod
-    def get_k_vector_azel(self,freq,az,el,**kwargs):
+    def get_k_vector_azel(cls,freq,az,el,**kwargs):
         '''
         @brief get our k vectors (e.g. kv_x = k*sin(az)*cos(el))  
         @param[in] freq - frequency in hz  
@@ -46,7 +72,7 @@ class AoaAlgorithm:
         array([[592.7944909352411287,   0.0000000000000000, 592.7944909352411287],  
                [642.2041730818633596,   0.0000000000000000, 538.8732847735016094]])  
         '''
-        k = self.get_k(freq,**kwargs)
+        k = cls.get_k(freq,**kwargs)
         k = k.reshape(-1,1,1)
         kvec = np.array([
                 np.sin(az)*np.cos(el),
@@ -56,7 +82,7 @@ class AoaAlgorithm:
         return kvec
     
     @classmethod
-    def get_steering_vectors(self,freqs,pos,az,el,**kwargs):
+    def get_steering_vectors(cls,freqs,pos,az,el,**kwargs):
         '''
         @brief return a set of steering vectors for a list of az/el pairs  
         @param[in] freqs - frequencies to calculate for  
@@ -76,10 +102,11 @@ class AoaAlgorithm:
         for k,v in kwargs.items():
             options[k] = v
         freqs = np.asarray(freqs) #change to nparray
-        kvecs = self.get_k_vector_azel(freqs,az,el)
+        kvecs = cls.get_k_vector_azel(freqs,az,el)
         steering_vecs_out = np.ndarray((len(freqs),len(az),len(pos)),dtype=options['dtype'])
         for fn in range(len(freqs)):
-            steering_vecs_out[fn,...] = self.vector_exp_complex(np.matmul(pos,kvecs[fn,...].transpose())).transpose()
+            temp_mult = np.matmul(kvecs[fn,...],pos.T)
+            steering_vecs_out[fn,...] = vector_exp_complex(temp_mult)
         return steering_vecs_out
     
     @classmethod
@@ -96,29 +123,9 @@ class AoaAlgorithm:
         '''
         raise NotImplementedError
     
-    #%% numba vectorize operations
-    from numba import complex128,complex64
-    @vectorize([complex128(complex128),
-                complex64 (complex64 )],target='parallel')
-    def vector_exp_complex(vals):
-        '''@brief numba compex exponential'''
-        return cmath.exp(-1j*vals)
-    
-    @vectorize([complex128(complex128,complex128),
-                complex64 (complex64 ,complex64 )],target='parallel')
-    def vector_mult_complex(a,b):
-        '''@brief numba complex vector multiplication''' 
-        return a*b
-
-    @vectorize([complex128(complex128,complex128,complex128),
-                complex64 (complex64 ,complex64 ,complex64 )],target='cpu')
-    def vector_beamform(weights,meas_vals,sv_no_exp):
-        '''@brief numba complex beamform multiplication'''
-        return weights*meas_vals*cmath.exp(-1j*sv_no_exp)
-
 #%% Synthetic data creation
     @classmethod
-    def synthesize_data(self,freq,pos,az,el,mag=1,**kwargs):
+    def synthesize_data(cls,freq,pos,az,el,mag=1,**kwargs):
         '''
         @brief create synthetic data for an array. This will generate synthetic
             data assuming incident plane waves from az,el angle pairs  
@@ -142,8 +149,8 @@ class AoaAlgorithm:
         for k,v in kwargs.items():
             options[k] = v
         #create the synthetic data
-        kvecs = self.get_k_vector_azel(freq,az,el)
-        synth_data = np.array([self.vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs],dtype=options['dtype']) #go through all az,el angles
+        kvecs = cls.get_k_vector_azel(freq,az,el)
+        synth_data = np.array([vector_exp_complex(-np.matmul(pos,kv.T)) for kv in kvecs],dtype=options['dtype']) #go through all az,el angles
         #add our magnitudes
         mag = np.reshape(mag,(1,1,-1)) #allow for a list of magnitudes here also
         synth_data *= mag
