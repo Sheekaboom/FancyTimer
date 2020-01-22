@@ -14,7 +14,7 @@ from numpy import sum as nsum
 from cmath import exp as cexp
 
 @vectorize([complex64 (complex64 ,complex64 ,complex64 ),
-            complex128(complex128,complex128,complex128)],target='cpu')
+            complex128(complex128,complex128,complex128)],target='parallel')
 def vector_beamform(weights,meas_vals,sv_no_exp):
     return weights*meas_vals*cexp(-1j*sv_no_exp)
 
