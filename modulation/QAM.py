@@ -48,16 +48,32 @@ def bitstream2data(bitstream,dtype,**kwargs):
     @todo remove intermediate bytearray step. Data is copied when that step is performed
     @return An np.ndarray of type specified by argument dtype
     '''
+    if dtype=='bitstream' or dtype is None:
+        return bitstream
     #find the length of the dtype compared to uint8
     dtype_bytes = len(np.ndarray((1,),dtype=dtype).tobytes())
     if len(bitstream)%(dtype_bytes*8): #if they arent divisible
         bitstream = bitstream[:-(len(bitstream)%(dtype_bytes*8))] #remove some padding
-    if dtype=='bitstream' or dtype is None:
-        return bitstream 
-    else:
-        mybytearray = bytearray(np.packbits(bitstream))
-        data = np.frombuffer(mybytearray,dtype=dtype,**kwargs)
-        return data
+    mybytearray = bytearray(np.packbits(bitstream))
+    data = np.frombuffer(mybytearray,dtype=dtype,**kwargs)
+    return data
+
+def calculate_BER(bitstream_in,bitstream_out,**kwargs):
+    '''
+    @brief Calculate the bit error rate given two bitstreams
+    @param[in] bitstream_in - input bitstream to a system
+    @param[in] bitstream_out - output bitstream from a system
+    @param[in/OPT] kwargs - keyword args as follows:
+        - - None Yet!
+    @cite https://www.keysight.com/main/editorial.jspx?ckey=1481106&id=1481106&nid=-11143.0.00&lc=eng&cc=US
+    @return Bit Error Rate (BER), Confidence Level (CL) as defined by the above citation
+    '''
+    n_bits = len(bitstream_out) #number of bits
+    n_err = np.sum(bitstream_in!=bitstream_out) #number of errored bits
+    ber = n_err/n_bits #ratio of errors to total bits
+    cl = 1-np.exp(-n_bits*ber)
+    return ber,cl
+    
 
 #%% and now for our constellation generation functions
 # This is done per the 3GPP spec for 5G NR (38.211 page 13)
@@ -208,9 +224,9 @@ class QAMConstellation():
         @brief unmap a set of iq (complex) values from the constellation
         @param[in] iq_data - iq locations to unmap to bits
         @param[in] dtype - if specified return a numpy array of a set type. 
-            Otherwise return a bytearray
+            Otherwise return a bytearray. If 'bitstream' return a bitstream
         @param[in/OPT] correct_iq - correct constellation points if not provided simply assume the closest one
-        @return a bytearray of the unmapped values
+        @return a bytearray or data type of the unmapped values
         '''
         if len(iq_data)==0:
             return np.array([],dtype=dtype),np.nan
@@ -353,6 +369,47 @@ class QAMError:
         and output an array of iq data points. Errors of various types will be added
         to these iq points
     '''
+    
+    @staticmethod 
+    def add_noise(data,noise_type_list,noise_funct_list):
+        '''
+        @bref Add noise or multiply types of noise by name to given data
+        @param[in] data - np.ndarray of data to add errors to
+        @param[in] noise_type_list - list of types of noise. This should be
+            'mag','phase','i', or 'q'.
+        @param[in] noise_funct_list - function to generate the noise for the data.
+            This function should take in a shape parameter (int or tuple of ints).
+            An example is 'lambda shape: np.random.normal(0,1,shape)'. If a single
+            function is provided, it will be used for all noise types
+        @return Data parameter with noise from noise_funct added on.
+        '''
+        #change to list if only 1 parameter is provided
+        if np.ndim(noise_type_list)==0: 
+            noise_type_list = [noise_type_list]
+        #change if only 1 noise function is provided
+        if np.ndim(noise_funct_list)==0:
+            noise_funct_list = [noise_funct_list]*len(noise_type_list)
+        #now ensure our lists are the same size
+        if len(noise_type_list)!=len(noise_funct_list):
+            raise Exception("Number of noise types must match the number",
+                            "of noise functions if more than 1 is provided")
+        #set the dictionary for each noise type provided
+        noise_add_funct_dict = {
+            'mag':QAMError.add_magnitude_noise,
+            'phase':QAMError.add_phase_noise,
+            'i':QAMError.add_i_noise,
+            'q':QAMError.add_q_noise}
+        #now loop through and apply noise
+        for noise_type,noise_funct in zip(noise_type_list,noise_funct_list):
+            noise_add_funct = noise_add_funct_dict.get(noise_type,None)
+            if noise_add_funct is None: #ensure we have a valid noise type
+                raise Exception("Unrecognized noise type {}".format(noise_type))
+            #otherwise lets add the noise
+            data = noise_add_funct(data,noise_funct)
+        #all noise types should be added now
+        return data
+            
+            
     
     @staticmethod
     def add_magnitude_noise(data,noise_funct):

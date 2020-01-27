@@ -12,7 +12,6 @@ import warnings
 import unittest
 
 from pycom.modulation.Modulation import Modem,TestModem
-from pycom.modulation.Modulation import ModulatedSignal, ModulatedSignalFrame
 from pycom.modulation.Modulation import lowpass_filter_zero_phase,bandstop_filter
 from pycom.modulation.Modulation import complex2magphase,magphase2complex
 
@@ -64,6 +63,23 @@ def get_correction_from_pilots(pilot_freqs,meas_pilots,correct_pilots,**kwargs):
         return out_data
     return channel_correct_funct
 
+def estimate_pilots_LSE(meas_pilots,correct_pilots,**kwargs):
+    '''
+    @brief Estimate the channel response at each pilot tone using a least
+        squares estimation. meas_pilots can be a 1D, or 2D array for least
+        squares approximation to solve :math:`Y = HX + \vec{n}`.
+    @param[in] meas_pilots - measured pilots. 1D or 2D ndarray
+    @param[in] correct_pilots - correct (known) pilot values that were sent
+        This should be a 1D ndarray.
+    @return Estimate of the channel response with respect to time and its the
+        calculated residual (solution,residual)
+    '''
+    lstsq_rv = np.linalg.lstsq(meas_pilots.T,correct_pilots)
+    soln = lstsq_rv[0]
+    residual = lstsq_rv[1]
+    return soln,residual
+    
+    
 class OFDMModem(Modem):
     '''
     @brief class to generate OFDM signals in frequency and time domain
@@ -524,30 +540,6 @@ class OFDMModem(Modem):
         for pack_num in range(len(ofdm_signal.packets)):
             cp_time = self.cp_length*self.baud_rate
             cp_i_vals = ofdm_signal.baseband_dict['i'][pack]
-
-class OFDMSignalFrame(ModulatedSignalFrame):
-    '''
-    @brief class to hold list of OFDM signals (frame)
-    @note there is nothing new over ModulatedSignalFrame. Just a naming
-    '''
-    pass
-
-class OFDMSignal(ModulatedSignal):
-    '''
-    @brief class to hold a generic ofdm modulated signal type
-    @param[in] everything is passed to ModulatedSignal for init. all kwargs are saved to self.metadata
-    @todo add pilots here (or pilot gen function), be able to generate channel correction fromm pilots saved here. Maybe also save the data being transmitted here
-    '''
-    
-    def __init__(self,*args,**kwargs):
-        '''@brief constructor'''
-        super().__init__(*args,**kwargs)
-    
-    @property
-    def subcarriers(self):
-        '''@brief simply another name for freq_list. This packet should only have subcarriers though'''
-        return self.freq_list
-    
     
 class OFDMError(Exception):
     pass
