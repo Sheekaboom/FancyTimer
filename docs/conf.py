@@ -13,6 +13,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../pycom'))
 file_dir = os.path.dirname(os.path.realpath(__file__))
 matlab_src_dir = os.path.abspath(os.path.join(file_dir,'..')) #must be set according to docs
 
