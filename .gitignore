@@ -8,3 +8,6 @@
 *.json
 #profiling info
 *.lprof
+
+## Build files for pip
+*.egg-info
