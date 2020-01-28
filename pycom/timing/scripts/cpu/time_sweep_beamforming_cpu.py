@@ -9,8 +9,8 @@ os.environ['NUMBA_NUM_THREADS'] = '12' # match the number used in MATLAB
 from numba import config as nb_config
 print(nb_config.NUMBA_NUM_THREADS)
 
-from pycom.base.OperationTimer import fancy_timeit_matrix_sweep
-from pycom.python_matlab_comparison.beamforming.beamform_speed import beamform_speed
+from pycom.timing.OperationTimer import fancy_timeit_matrix_sweep
+from pycom.timing.beamforming.beamform_speed import beamform_speed
 import numpy as np
 import scipy.linalg
 import os

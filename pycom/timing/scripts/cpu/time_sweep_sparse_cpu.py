@@ -5,7 +5,7 @@ Created on Tue Nov  5 16:14:54 2019
 @author: aweiss
 """
 
-from pycom.base.OperationTimer import fancy_timeit_matrix_sweep
+from pycom.timing.OperationTimer import fancy_timeit_matrix_sweep
 import numpy as np
 import scipy.linalg
 import os

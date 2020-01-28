@@ -5,8 +5,8 @@ Created on Tue Nov  5 16:14:54 2019
 @author: aweiss
 """
 
-from pycom.base.OperationTimer import fancy_timeit_matrix_sweep
-from pycom.python_matlab_comparison.FDFD.FDFD_2D import FDFD_2D
+from pycom.timing.OperationTimer import fancy_timeit_matrix_sweep
+from pycom.timing.FDFD.FDFD_2D import FDFD_2D
 import numpy as np
 import scipy.linalg
 import os
