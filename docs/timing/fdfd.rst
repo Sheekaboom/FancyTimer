@@ -24,9 +24,9 @@ CPU
 Code
 -----------
 
-The following class was used to calculate the 2D FDFD solution:
+The following function was used to calculate the 2D FDFD solution:
 
-.. automodule:: python_matlab_comparison.FDFD.FDFD_2D
+.. automodule:: pycom.timing.FDFD.FDFD_2D
 	:members:
     
 The runtimes were generated with the following scripts:
@@ -36,10 +36,10 @@ Python
 
 **CPU Code**
 
-..  module:: python_matlab_comparison.scripts.cpu.time_sweep_fdfd_cpu
-..  data:: python_matlab_comparison.scripts.cpu.time_sweep_fdfd_cpu
+..  module:: pycom.timing.scripts.cpu.time_sweep_fdfd_cpu
+..  data::pycom.timing.scripts.cpu.time_sweep_fdfd_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_fdfd_cpu.py
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_fdfd_cpu.py
     :language: python
     :linenos:
 
@@ -51,10 +51,10 @@ MATLAB
 
 **CPU Code**
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_fdfd_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_fdfd_cpu
+.. mat:module:: pycom.timing.scripts.cpu.time_sweep_fdfd_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_fdfd_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_fdfd_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_fdfd_cpu.m 
     :language: matlab
     :linenos:
 

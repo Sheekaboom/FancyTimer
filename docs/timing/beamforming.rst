@@ -39,7 +39,7 @@ Code
 
 The following module was used to calculate the Beamforming solution:
 
-.. automodule:: python_matlab_comparison.beamforming.beamform_speed
+.. automodule:: pycom.timing.beamforming.beamform_speed
 	:members:
     
 The runtimes were generated with the following scripts:
@@ -49,10 +49,10 @@ Python
 
 **CPU Code** 
 
-..  module:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
-..  data:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
+..  module:: pycom.timing.scripts.cpu.time_sweep_beamforming_cpu
+..  data:: pycom.timing.scripts.cpu.time_sweep_beamforming_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_beamforming_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_beamforming_cpu.m 
     :language: python
     :linenos:
 
@@ -63,10 +63,10 @@ MATLAB
 
 **CPU Code**
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_beamforming_cpu
+.. mat:module:: pycom.timing.scripts.cpu.time_sweep_beamforming_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_beamforming_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_beamforming_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_beamforming_cpu.m 
     :language: matlab
     :linenos:
 	

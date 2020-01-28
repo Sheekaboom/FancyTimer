@@ -52,10 +52,10 @@ Python
 
 **CPU Code**
 
-..  module:: python_matlab_comparison.scripts.cpu.time_sweep_basic_cpu
-..  data:: python_matlab_comparison.scripts.cpu.time_sweep_basic_cpu
+..  module:: pycom.timing.scripts.cpu.time_sweep_basic_cpu
+..  data::   pycom.timing.scripts.cpu.time_sweep_basic_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_basic_cpu.py
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_basic_cpu.py
     :language: python
     :linenos:
 
@@ -66,10 +66,10 @@ MATLAB
 
 **CPU Code**
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_basic_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_basic_cpu
+.. mat:module:: pycom.timing.cpu.time_sweep_basic_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_basic_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_basic_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_basic_cpu.m 
     :language: matlab
     :linenos:
 

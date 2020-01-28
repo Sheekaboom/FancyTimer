@@ -52,17 +52,17 @@ Python
 
 **CPU Code**
 
-..  module:: python_matlab_comparison.scripts.cpu.time_sweep_matrix_cpu
-..  data:: python_matlab_comparison.scripts.cpu.time_sweep_matrix_cpu
+..  module:: pycom.timing.scripts.cpu.time_sweep_matrix_cpu
+..  data:: pycom.timing.scripts.cpu.time_sweep_matrix_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_matrix_cpu.py
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_matrix_cpu.py
     :language: python
     :linenos:
 
-..  module:: python_matlab_comparison.scripts.cpu.time_sweep_sparse_cpu
-..  data:: python_matlab_comparison.scripts.cpu.time_sweep_sparse_cpu
+..  module:: pycom.timing.scripts.cpu.time_sweep_sparse_cpu
+..  data:: pycom.timing.scripts.cpu.time_sweep_sparse_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_sparse_cpu.py 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_sparse_cpu.py 
     :language: python
     :linenos:
         
@@ -71,17 +71,17 @@ MATLAB
 
 **CPU Code**
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_matrix_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_matrix_cpu
+.. mat:module:: pycom.timing.scripts.cpu.time_sweep_matrix_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_matrix_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_matrix_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_matrix_cpu.m 
     :language: matlab
     :linenos:
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_sparse_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_sparse_cpu
+.. mat:module:: pycom.timing.scripts.cpu.time_sweep_sparse_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_sparse_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_sparse_cpu.m 
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_sparse_cpu.m 
     :language: matlab
     :linenos:
         

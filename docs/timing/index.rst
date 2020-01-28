@@ -29,20 +29,20 @@ All comparisons were run together with the following scripts:
 Python
 ++++++++++++
 
-.. module:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
-.. data:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
+.. module:: pycom.timing.scripts.cpu.time_sweep_cpu
+.. data:: pycom.timing.scripts.cpu.time_sweep_cpu
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_cpu.py
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_cpu.py
     :language: python
     :linenos:
 
 MATLAB 
 +++++++++++++
 
-.. mat:module:: python_matlab_comparison.scripts.cpu.time_sweep_cpu
-.. mat:script:: python_matlab_comparison.scripts.cpu.time_sweep_cpu 
+.. mat:module:: pycom.timing.scripts.cpu.time_sweep_cpu
+.. mat:script:: pycom.timing.scripts.cpu.time_sweep_cpu 
 
-.. literalinclude:: /../python_matlab_comparison/scripts/cpu/time_sweep_cpu.m
+.. literalinclude:: /../pycom/timing/scripts/cpu/time_sweep_cpu.m
     :language: matlab
     :linenos:
 

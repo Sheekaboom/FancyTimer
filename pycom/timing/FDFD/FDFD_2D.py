@@ -280,7 +280,7 @@ def FDFD_2D(num_cells_x=None,num_cells_y=None,dtype=np.cdouble,use_gpu=False):
 #%% Plotting
 if __name__=='__main__':
     num_cells = 120
-    from pycom.base.OperationTimer import fancy_timeit
+    from pycom.timing.OperationTimer import fancy_timeit
     time_stats = fancy_timeit(lambda: FDFD_2D(num_cells,num_cells,np.cdouble),num_reps=5)
     
     E_tot,E_scat = FDFD_2D(num_cells,num_cells,np.csingle)

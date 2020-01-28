@@ -6,7 +6,6 @@ Created on Sun Jan  5 19:36:05 2020
 """
 
 from pycom.aoa.CBF import CBF
-from pycom.base.OperationTimer import fancy_timeit 
 import numpy as np
 
 def beamform_speed(num_angles,dtype='double',bf_funct=CBF.calculate):
@@ -71,7 +70,8 @@ if __name__=='__main__':
     
     #import plotly.graph_objects as go
     #from WeissTools.python.PlotTools import format_plot
-    
+    from pycom.timing.OperationTimer import fancy_timeit 
+
     dtype = np.csingle
     tstats = fancy_timeit(lambda:beamform_speed(181,dtype=dtype),1)
     #bfv,az,el = beamform_speed(181,dtype=dtype)

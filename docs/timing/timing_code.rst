@@ -12,7 +12,7 @@ Python
 .. code-block:: python
  
     #import dependencies
-    from pycom.base.OperationTimer import fancy_timeit_matrix_sweep
+    from pycom.timing.OperationTimer import fancy_timeit_matrix_sweep
     import numpy as np
 
     #set our sweep size (use default argument generation function
@@ -41,7 +41,7 @@ MATLAB
 .. code-block:: matlab
 
     #add the path of our timing class
-    addpath('C:\Users\aweis\git\pycom\base');
+    addpath('C:\Users\aweis\git\pycom\timing');
 
     #set our sweep size (use default argument generation function
     mat_dim_list = floor(linspace(1,10000,51));
@@ -71,14 +71,14 @@ Libraries for Timing
 Python
 +++++++++++++
 
-.. automodule:: base.OperationTimer
+.. automodule:: pycom.timing.OperationTimer
 	:members:
 
 MATLAB
 ++++++++++
 
-.. mat:automodule:: base
-.. mat:autoclass:: base.OperationTimer
+.. mat:automodule:: pycom.timing
+.. mat:autoclass:: pycom.timing.OperationTimer
    :members:
 
 
