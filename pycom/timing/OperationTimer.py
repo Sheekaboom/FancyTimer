@@ -92,10 +92,12 @@ class FancyTimerStatsMatrixSet(FancyTimerStatsSet):
         '''
         super().__init__(*args,**kwargs)   
 
-def fancy_timeit(mycallable,num_reps=3,**kwargs):
+def fancy_timeit(mycallable,num_reps=3,num_calls=1,**kwargs):
     '''
     @brief easy timeit function that will return a dictionary of timing statistics
     @param[in] mycallable - callable statement to time
+    @param[in] num_calls - number of calls per time. This is useful for functions 
+        that finish really quickly, although they cannot be used for statistics
     @param[in/OPT] num_reps - number of repeats for timing and statistics
     @return A FancyTimerStats object of timing statistics of mycallable
     '''
@@ -106,13 +108,15 @@ def inner(_it, _timer{init}):
     for _i in _it:
         _t0 = _timer()
         #retval = {stmt}
-        {stmt}
+        rv = {stmt}
         _t1 = _timer()
-        time_list.append(_t1-_t0) #append the time to run
+        time_list.append((_t1-_t0)/len(rv)) #append the time to run
     return time_list #, retval
 '''    
     
     timeit.template = fancy_template #set the template
+    if num_calls>1: mycallable_str = '[{call} for i in range({num_calls})]'.format(call=mycallable,num_calls=num_calls)
+    else: mycallable_str = '{call}'.format(call=mycallable)
     ft = timeit.Timer(stmt=mycallable,**kwargs)
     #tl,rv = ft.timeit(number=num_reps)
     tl = ft.timeit(number=num_reps)
@@ -126,7 +130,7 @@ def display_time_stats(time_data,name):
     time_data.print()
     return time_data 
 
-def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_reps,**kwargs):
+def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_reps,num_calls=1,**kwargs):
     '''
     @brief easy timeit function that will return the results of a function
         along with a dictionary of timing statistics
@@ -184,7 +188,7 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
                 num_args = num_arg_list[i]
                 print('    %10s :' %(funct_name),end='');
                 lam_fun = lambda: funct(*tuple(arg_inputs[:num_args]))
-                cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps)
+                cur_stat = options['timer_funct'](lam_fun,num_reps=num_reps,num_calls=num_calls)
                 stats[funct_name]['m_'+str(dim)] = cur_stat
                 #ret_vals[funct_name] = rv
                 print(' SUCCESS')
@@ -216,17 +220,37 @@ def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_
     return stats,rv
       
 #%% some testing  
+
+import unittest
+
+class TestOperationTimer(unittest.TestCase):
+    '''@brief test the Operation Timer class'''
+    
+    def test_matmul_timing(self):
+        '''@brief test timing using numpy matmul with a.size=(10000,1000), b.size=(1000,1000)'''
+        print("Testing")
+        a = np.random.rand(10000,1000)
+        b = np.random.rand(1000,1000)
+        times = fancy_timeit(lambda: a@b,10,100)
+        print(times)
+        times2 = fancy_timeit(lambda: a@b,10,1)
+        print(times2)
+
+
 if __name__=='__main__':
+    
+    unittest.main()
     
     #%% Test the fancy_timeit_matrix_sweep capability
     #mat_dim_list = 2**np.arange(4,14);
     #mat_dim_list = np.floor(np.logspace(1,4,100)).astype(np.int32)
+    '''
     mat_dim_list = 2**np.arange(4,11);
     funct_list   = [np.add,np.subtract,np.multiply,np.divide];
     funct_names  = ['add' ,'sub'      ,'mult'     ,'div'    ];
     num_arg_list = [2     ,2          ,2          ,2        ];
     [py_stats_1,rv] = fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,mat_dim_list,100,dtype=np.csingle);
-    
+    '''
     '''
     from scipy.linalg import lu
     funct_list   = [lu  ,np.matmul]
