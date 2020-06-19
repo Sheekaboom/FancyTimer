@@ -11,3 +11,9 @@
 
 ## Build files for pip
 *.egg-info
+
+# Any temporary directories (usually for data)
+tmp/
+
+# Python linter
+.pylint.d
