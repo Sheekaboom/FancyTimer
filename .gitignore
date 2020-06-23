@@ -17,3 +17,11 @@ tmp/
 
 # Python linter
 .pylint.d
+
+# dont include dependencies
+lib/
+
+# some c things
+*.gch
+*.out
+*.exe
