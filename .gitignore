@@ -1,7 +1,6 @@
 # compiled python files
 *.pyc
-#matlab figures or data files or matlab temp files
-*.mat
+#matlab figures or matlab temp files
 *.asv
 *.fig
 #json data
