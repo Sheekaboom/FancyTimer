@@ -6,9 +6,9 @@ Created on Tue Jan 21 10:37:05 2020
 """
 from setuptools import setup,find_packages
 
-setup(name='pycom',
+setup(name='Fancy Timer',
       version='0.1',
-      description='Python 5G communications. Thesis Code.',
+      description='More developed timing library for python and MATLAB',
       author='Alec Weiss',
       author_email='alec@weissworks.dev',
       url='https://www.weissworks.dev',
