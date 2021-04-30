@@ -10,7 +10,7 @@ import inspect
 import re
 
 try:
-    from WeissTools import WDict
+    from WeissTools.Dict import WDict
 except ModuleNotFoundError:
     from collections import OrderedDict as WDict       
   
@@ -112,11 +112,14 @@ def inner(_it, _timer{init}):
         _t1 = _timer()
         time_list.append((_t1-_t0)/len(rv)) #append the time to run
     return time_list #, retval
-'''    
+'''
     
+    #if num_calls>1: mycallable_str = '[{call} for i in range({num_calls})]'.format(call=mycallable,num_calls=num_calls)
+    #else: mycallable_str = '{call}'.format(call=mycallable)
+    stmt_rep_str = '[{stmt} for i in range(%d)]' %(num_calls)
+    fancy_template = fancy_template.replace('{stmt}',stmt_rep_str)
+    # now run the timeit stuff
     timeit.template = fancy_template #set the template
-    if num_calls>1: mycallable_str = '[{call} for i in range({num_calls})]'.format(call=mycallable,num_calls=num_calls)
-    else: mycallable_str = '{call}'.format(call=mycallable)
     ft = timeit.Timer(stmt=mycallable,**kwargs)
     #tl,rv = ft.timeit(number=num_reps)
     tl = ft.timeit(number=num_reps)
@@ -130,7 +133,7 @@ def display_time_stats(time_data,name):
     time_data.print()
     return time_data 
 
-def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list,kwargs:list=None,verbose=True):
+def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list=1,kwargs:list=None,verbose=True):
     '''
     @brief time a list of functs each for a given list of args a number of reps specified 
         by the corresponding entry in num_reps and same for num_calls (see fancy_timeit)
@@ -142,18 +145,25 @@ def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list,kwargs
     @return dict with function names as keys and list of FancyTimerStats for each corresponding args
     '''
     # clean input
+    if np.isscalar(num_reps): num_reps = [num_reps]*len(args)
+    if np.isscalar(num_calls):num_calls = [num_calls]*len(args)
     if isinstance(args,tuple): args = [args]
+    if kwargs is None: kwargs = {}
     if isinstance(kwargs,dict): # allow passing single kwargs for all
         kwargs = [kwargs]*len(args)
     # now lets test
     out_stats = WDict()
     for funct in functs: # go through each function
-        fname = funct.__name__ # get the name
+        fname = str(funct) # get the name
         if verbose: print("Fancily Timing {} 🧐".format(fname))
         fstats = []
-        for arg,kwarg in zip(args,kwargs):
-            cur_stat = fancy_timeit(lambda: funct(*arg,**kwarg))
-            fstats.append(cur_stat)
+        for i in range(len(args)):
+            try: # try and push through if we have any errors
+                if verbose>1:print("Running for args[{}]".format(i))
+                cur_stat = fancy_timeit(lambda: funct(*args[i],**kwargs[i]),num_reps=num_reps[i])
+                fstats.append(cur_stat)
+            except Exception as e:
+                fstats.append(str(e))
         out_stats[fname] = fstats 
     return out_stats
 
