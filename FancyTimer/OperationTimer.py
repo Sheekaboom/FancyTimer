@@ -130,6 +130,33 @@ def display_time_stats(time_data,name):
     time_data.print()
     return time_data 
 
+def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list,kwargs:list=None,verbose=True):
+    '''
+    @brief time a list of functs each for a given list of args a number of reps specified 
+        by the corresponding entry in num_reps and same for num_calls (see fancy_timeit)
+    @param[in] functs - iterable of functions to time. Each should have the same number of inputs
+    @param[in] args - list of tuples for swept arguments to pass to each function
+    @param[in] num_reps - list of number of repeat arguments to run for each funct and arg
+    @param[in] num_calls - list of integers. See fancy_timeit comments
+    @param[in/OPT] kwargs - list of dicts to pass as kwargs
+    @return dict with function names as keys and list of FancyTimerStats for each corresponding args
+    '''
+    # clean input
+    if isinstance(args,tuple): args = [args]
+    if isinstance(kwargs,dict): # allow passing single kwargs for all
+        kwargs = [kwargs]*len(args)
+    # now lets test
+    out_stats = WDict()
+    for funct in functs: # go through each function
+        fname = funct.__name__ # get the name
+        if verbose: print("Fancily Timing {} 🧐".format(fname))
+        fstats = []
+        for arg,kwarg in zip(args,kwargs):
+            cur_stat = fancy_timeit(lambda: funct(*arg,**kwarg))
+            fstats.append(cur_stat)
+        out_stats[fname] = fstats 
+    return out_stats
+
 def fancy_timeit_matrix_sweep(funct_list,funct_names,num_arg_list,dim_range,num_reps,num_calls=1,**kwargs):
     '''
     @brief easy timeit function that will return the results of a function

@@ -6,7 +6,7 @@ Created on Tue Jan 21 10:37:05 2020
 """
 from setuptools import setup,find_packages
 
-setup(name='Fancy Timer',
+setup(name='FancyTimer',
       version='0.1',
       description='More developed timing library for python and MATLAB',
       author='Alec Weiss',
