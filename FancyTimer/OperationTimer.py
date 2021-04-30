@@ -10,11 +10,11 @@ import inspect
 import re
 
 try:
-    from samurai.base.SamuraiDict import   SamuraiDict
+    from WeissTools import WDict
 except ModuleNotFoundError:
-    from collections import OrderedDict as SamuraiDict       
+    from collections import OrderedDict as WDict       
   
-class FancyTimerStats(SamuraiDict):
+class FancyTimerStats(WDict):
     '''
     @brief class to hold and manipulate data from fancy_timeit function
     '''
@@ -51,7 +51,7 @@ class FancyTimerStats(SamuraiDict):
         '''
         self['speedup'] = base_fts['mean']/self['mean']
         
-class FancyTimerStatsSet(SamuraiDict):
+class FancyTimerStatsSet(WDict):
     '''
     @brief a class to hold a collection of FancyTimerStats.
     '''
