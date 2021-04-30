@@ -8,9 +8,11 @@ import timeit
 import numpy as np
 import inspect
 import re
+import warnings
+import multiprocessing as mp # for timeout
 
 try:
-    from WeissTools import WDict
+    from WeissTools.Dict import WDict
 except ModuleNotFoundError:
     from collections import OrderedDict as WDict       
   
@@ -92,6 +94,10 @@ class FancyTimerStatsMatrixSet(FancyTimerStatsSet):
         '''
         super().__init__(*args,**kwargs)   
 
+# this should be rearranged to a different location... kinda out of place
+class FancyTimeout(Exception):
+    pass
+
 def fancy_timeit(mycallable,num_reps=3,num_calls=1,**kwargs):
     '''
     @brief easy timeit function that will return a dictionary of timing statistics
@@ -122,6 +128,30 @@ def inner(_it, _timer{init}):
     tl = ft.timeit(number=num_reps)
     return FancyTimerStats(tl)
 
+def fancy_timeit_timeout(mycallable,num_reps=3,num_calls=1,timeout=60,**kwargs):
+    '''
+    @brief easy timeit function that will return a dictionary of timing statistics
+    @param[in] mycallable - callable statement to time
+    @param[in] num_calls - number of calls per time. This is useful for functions 
+        that finish really quickly, although they cannot be used for statistics
+    @param[in/OPT] num_reps - number of repeats for timing and statistics
+    @return A FancyTimerStats object of timing statistics of mycallable
+    @cite Timeout help from https://stackoverflow.com/questions/20360795/timeout-on-a-python-function-call-inside-timeit
+    '''
+    # startup the pool
+    pool = mp.Pool(processes = 1)
+    try:
+        # start the process asynchronously and wait for our return. err is how long for comms and whatnot
+        result = pool.apply_async(fancy_timeit, args=(num_reps,num_calls), kwds=kwargs)
+        val = result.get(timeout = timeout * (1 + .05))
+    except mp.TimeoutError:
+        pool.terminate()
+        raise FancyTimeout("Process took more than {}s for {} repeats".format(timeout,num_reps))
+    else:
+        pool.close()
+        pool.join()
+        return val
+
 def display_time_stats(time_data,name):
     '''
     @brief print our time data from our Function
@@ -130,7 +160,7 @@ def display_time_stats(time_data,name):
     time_data.print()
     return time_data 
 
-def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list,kwargs:list=None,verbose=True):
+def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list=1,kwargs:list=None,verbose=True,timeout=None):
     '''
     @brief time a list of functs each for a given list of args a number of reps specified 
         by the corresponding entry in num_reps and same for num_calls (see fancy_timeit)
@@ -142,18 +172,26 @@ def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list,kwargs
     @return dict with function names as keys and list of FancyTimerStats for each corresponding args
     '''
     # clean input
+    if kwargs is None: kwargs = {}
     if isinstance(args,tuple): args = [args]
     if isinstance(kwargs,dict): # allow passing single kwargs for all
         kwargs = [kwargs]*len(args)
+    if np.isscalar(num_reps): num_reps = [num_reps]*len(args)
+    if np.isscalar(num_calls): num_calls = [num_calls]*len(args)
     # now lets test
     out_stats = WDict()
     for funct in functs: # go through each function
-        fname = funct.__name__ # get the name
+        fname = str(funct)
         if verbose: print("Fancily Timing {} 🧐".format(fname))
         fstats = []
-        for arg,kwarg in zip(args,kwargs):
-            cur_stat = fancy_timeit(lambda: funct(*arg,**kwarg))
-            fstats.append(cur_stat)
+        for i in range(len(args)):
+            if verbose>1: print("Running with {}".format(i))
+            try:
+                cur_stat = fancy_timeit(lambda: funct(*args[i],**kwargs[i]))
+                fstats.append(cur_stat)
+            except Exception as e: # if it fails for some reason (e.g. out of memory) try to push through
+                warnings.warn("Exception in timer for {}{} {}".format(funct,args[i],e))
+                fstats.append(str(e))
         out_stats[fname] = fstats 
     return out_stats
 
