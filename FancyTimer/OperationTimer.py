@@ -8,6 +8,7 @@ import timeit
 import numpy as np
 import inspect
 import re
+import warnings
 
 try:
     from WeissTools.Dict import WDict
@@ -163,6 +164,7 @@ def fancy_timeit_sweep(functs:list,args:list,num_reps:list,num_calls:list=1,kwar
                 cur_stat = fancy_timeit(lambda: funct(*args[i],**kwargs[i]),num_reps=num_reps[i])
                 fstats.append(cur_stat)
             except Exception as e:
+                warnings.warn("EXCEPTION THROWN: {}".format(e))
                 fstats.append(str(e))
         out_stats[fname] = fstats 
     return out_stats
