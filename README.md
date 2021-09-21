@@ -1,8 +1,6 @@
-# PyCom 
+# FancyTimer
 
-This is Python for Communications (Specifically 5G). To start it focuses on OFDM, Beamforming, Channel Estimation, and Acceleration of these things.
+A fancy python timer that extends on the capabilities of the basic timer. This was build specifically for getting accurate runtimes for different peices of code in python.
 
-## Python Package
 
-The python package is in the `./pycom/` folder.
 
